@@ -7,7 +7,7 @@ import { PageHeader } from "@/features/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClassFormDialog, ClassEditing } from "@/features/classes/ClassFormDialog";
 import { EnrollmentsDialog } from "@/features/classes/EnrollmentsDialog";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatVND } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -28,6 +28,8 @@ type ClassRow = {
   schedule: { weekday: number; start: string; end: string }[] | null;
 };
 
+type EnrollAgg = { class_id: number; count: number; min: number; max: number };
+
 export default function ClassesPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -46,6 +48,37 @@ export default function ClassesPage() {
       return (data ?? []) as unknown as ClassRow[];
     },
   });
+
+  // Aggregate enrollments cho tất cả lớp (số học sinh đang học + price range)
+  const aggQ = useQuery({
+    queryKey: ["enrollments-agg"],
+    enabled: !!classesQ.data?.length,
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("class_enrollments")
+        .select("class_id, price_per_session, end_date")
+        .is("deleted_at", null);
+      if (error) throw error;
+      const map = new Map<number, EnrollAgg>();
+      (data ?? []).forEach((r: any) => {
+        if (r.end_date && r.end_date < today) return;
+        const cur = map.get(r.class_id) ?? {
+          class_id: r.class_id,
+          count: 0,
+          min: Infinity,
+          max: -Infinity,
+        };
+        cur.count += 1;
+        cur.min = Math.min(cur.min, r.price_per_session);
+        cur.max = Math.max(cur.max, r.price_per_session);
+        map.set(r.class_id, cur);
+      });
+      return map;
+    },
+  });
+
+  const aggMap = aggQ.data ?? new Map<number, EnrollAgg>();
 
   const softDelete = async (id: number) => {
     const { error } = await supabase
@@ -104,91 +137,117 @@ export default function ClassesPage() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {list.map((c) => (
-          <Card key={c.id} className="border-border/80 transition-shadow hover:shadow-md">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <CardTitle className="font-display text-lg leading-tight">{c.name}</CardTitle>
-                  {c.subject && (
-                    <Badge variant="secondary" className="mt-2">{c.subject}</Badge>
+        {list.map((c) => {
+          const agg = aggMap.get(c.id);
+          const priceLabel = agg
+            ? agg.min === agg.max
+              ? formatVND(agg.min)
+              : `${formatVND(agg.min)} – ${formatVND(agg.max)}`
+            : null;
+          return (
+            <Card key={c.id} className="border-border/80 transition-shadow hover:shadow-md">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <CardTitle className="font-display text-lg leading-tight">{c.name}</CardTitle>
+                    {c.subject && (
+                      <Badge variant="secondary" className="mt-2">{c.subject}</Badge>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      title={`Học sinh trong lớp${agg ? ` (${agg.count})` : ""}`}
+                      onClick={() => setEnrollOf({ id: c.id, name: c.name })}
+                    >
+                      <Users className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setEditing(c as ClassEditing);
+                        setOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Xoá lớp "{c.name}"?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Lớp sẽ bị ẩn. Lịch sử buổi học, điểm danh, học phí vẫn còn.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Huỷ</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => softDelete(c.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Xoá
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex flex-wrap gap-1">
+                  {(c.schedule ?? []).map((s, i) => (
+                    <span key={i} className="rounded-md bg-muted px-2 py-1 text-xs">
+                      {dayLabel[s.weekday]} • {s.start}–{s.end}
+                    </span>
+                  ))}
+                  {(!c.schedule || c.schedule.length === 0) && (
+                    <span className="text-xs text-muted-foreground">Chưa có lịch</span>
                   )}
                 </div>
-                <div className="flex shrink-0 gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    title="Học sinh trong lớp"
+                <div className="flex flex-wrap items-center gap-3 border-t border-border pt-2 text-xs text-muted-foreground">
+                  <button
+                    type="button"
                     onClick={() => setEnrollOf({ id: c.id, name: c.name })}
+                    className="inline-flex items-center gap-1 rounded-md hover:text-foreground"
                   >
-                    <Users className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => {
-                      setEditing(c as ClassEditing);
-                      setOpen(true);
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Xoá lớp "{c.name}"?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Lớp sẽ bị ẩn. Lịch sử buổi học, điểm danh, học phí vẫn còn.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Huỷ</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => softDelete(c.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                          Xoá
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                    <Users className="h-3.5 w-3.5" />
+                    <span className="font-medium text-foreground">{agg?.count ?? 0}</span> học sinh
+                  </button>
+                  {priceLabel && (
+                    <span>
+                      Học phí: <span className="font-medium text-foreground">{priceLabel}</span>/buổi
+                    </span>
+                  )}
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex flex-wrap gap-1">
-                {(c.schedule ?? []).map((s, i) => (
-                  <span key={i} className="rounded-md bg-muted px-2 py-1 text-xs">
-                    {dayLabel[s.weekday]} • {s.start}–{s.end}
-                  </span>
-                ))}
-                {(!c.schedule || c.schedule.length === 0) && (
-                  <span className="text-xs text-muted-foreground">Chưa có lịch</span>
+                <div className="text-xs text-muted-foreground">
+                  Bắt đầu: {formatDate(c.start_date)}
+                  {c.end_date && ` → ${formatDate(c.end_date)}`}
+                </div>
+                {c.note && (
+                  <p className="border-t border-border pt-2 text-xs text-muted-foreground">
+                    {c.note}
+                  </p>
                 )}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Bắt đầu: {formatDate(c.start_date)}
-                {c.end_date && ` → ${formatDate(c.end_date)}`}
-              </div>
-              {c.note && (
-                <p className="border-t border-border pt-2 text-xs text-muted-foreground">
-                  {c.note}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <ClassFormDialog
         open={open}
         onOpenChange={setOpen}
         editing={editing}
-        onSaved={() => qc.invalidateQueries({ queryKey: ["classes"] })}
+        onSaved={(newId?: number, name?: string) => {
+          qc.invalidateQueries({ queryKey: ["classes"] });
+          if (newId && name) setEnrollOf({ id: newId, name });
+        }}
       />
       <EnrollmentsDialog
         open={!!enrollOf}
