@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/features/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClassFormDialog, ClassEditing } from "@/features/classes/ClassFormDialog";
+import { EnrollmentsDialog } from "@/features/classes/EnrollmentsDialog";
 import { formatDate } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -31,6 +32,7 @@ export default function ClassesPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ClassEditing | null>(null);
+  const [enrollOf, setEnrollOf] = useState<{ id: number; name: string } | null>(null);
 
   const classesQ = useQuery({
     queryKey: ["classes"],
@@ -117,6 +119,15 @@ export default function ClassesPage() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
+                    title="Học sinh trong lớp"
+                    onClick={() => setEnrollOf({ id: c.id, name: c.name })}
+                  >
+                    <Users className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
                     onClick={() => {
                       setEditing(c as ClassEditing);
                       setOpen(true);
@@ -178,6 +189,12 @@ export default function ClassesPage() {
         onOpenChange={setOpen}
         editing={editing}
         onSaved={() => qc.invalidateQueries({ queryKey: ["classes"] })}
+      />
+      <EnrollmentsDialog
+        open={!!enrollOf}
+        onOpenChange={(v) => !v && setEnrollOf(null)}
+        classId={enrollOf?.id ?? null}
+        className={enrollOf?.name ?? ""}
       />
     </div>
   );
