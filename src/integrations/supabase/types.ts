@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       assignments: {
         Row: {
+          attachments: Json
           class_id: number
           created_at: string
           created_by: string | null
@@ -30,6 +31,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attachments?: Json
           class_id: number
           created_at?: string
           created_by?: string | null
@@ -44,6 +46,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attachments?: Json
           class_id?: number
           created_at?: string
           created_by?: string | null
@@ -906,7 +909,15 @@ export type Database = {
         Args: { _class_id: number }
         Returns: boolean
       }
+      is_parent_in_assignment: {
+        Args: { _assignment_id: number }
+        Returns: boolean
+      }
       is_parent_of_student: { Args: { _student_id: number }; Returns: boolean }
+      is_student_in_assignment: {
+        Args: { _assignment_id: number }
+        Returns: boolean
+      }
       is_student_in_class: { Args: { _class_id: number }; Returns: boolean }
       is_student_self: { Args: { _student_id: number }; Returns: boolean }
       is_teacher: { Args: never; Returns: boolean }
