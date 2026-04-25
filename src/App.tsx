@@ -11,6 +11,10 @@ import Dashboard from "@/pages/Dashboard";
 import StudentsPage from "@/pages/Students";
 import ParentsPage from "@/pages/Parents";
 import ClassesPage from "@/pages/Classes";
+import SessionsPage from "@/pages/Sessions";
+import AttendancePage from "@/pages/Attendance";
+import AssignmentsPage from "@/pages/Assignments";
+import AssignmentDetailPage from "@/pages/AssignmentDetail";
 import ComingSoon from "@/pages/ComingSoon";
 import NotFound from "@/pages/NotFound";
 
@@ -59,9 +63,46 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route path="/sessions" element={<ComingSoon title="Buổi học" />} />
-              <Route path="/attendance" element={<ComingSoon title="Điểm danh" />} />
-              <Route path="/assignments" element={<ComingSoon title="Bài tập" />} />
+              <Route
+                path="/sessions"
+                element={
+                  <ProtectedRoute allow={["teacher"]}>
+                    <SessionsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/attendance"
+                element={
+                  <ProtectedRoute allow={["teacher"]}>
+                    <SessionsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/attendance/:sessionId"
+                element={
+                  <ProtectedRoute allow={["teacher"]}>
+                    <AttendancePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/assignments"
+                element={
+                  <ProtectedRoute allow={["teacher"]}>
+                    <AssignmentsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/assignments/:assignmentId"
+                element={
+                  <ProtectedRoute allow={["teacher"]}>
+                    <AssignmentDetailPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="/payments" element={<ComingSoon title="Học phí" />} />
               <Route path="/settings" element={<ComingSoon title="Cài đặt" />} />
               <Route path="/my-classes" element={<ComingSoon title="Lớp của tôi" />} />
