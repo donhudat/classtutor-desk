@@ -1,7 +1,7 @@
 // register-teacher: tạo tenant mới + auth user + profile + role=teacher
 // Public endpoint, verify_jwt = false
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { z } from "npm:zod@3.23.8";
+import { z } from "https://esm.sh/zod@3.23.8";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
