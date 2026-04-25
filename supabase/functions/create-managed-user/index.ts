@@ -1,6 +1,6 @@
 // create-managed-user: teacher tạo student/parent trong tenant của mình.
 // Yêu cầu JWT của teacher. Server verify role + tenant.
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { z } from "https://esm.sh/zod@3.23.8";
 
 const corsHeaders = {
