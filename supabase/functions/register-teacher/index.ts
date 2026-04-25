@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     // 2) Tạo tenant
     const { data: tenant, error: tenantErr } = await admin
       .from("tenants")
-      .insert({ name: tenant_name, owner_user_id: userId })
+      .insert({ name: tenant_name, owner_user_id: null })
       .select("id")
       .single();
     if (tenantErr || !tenant) {
@@ -137,6 +137,12 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // 5) Cập nhật owner_user_id (sau khi profile đã tồn tại để thoả FK)
+    await admin
+      .from("tenants")
+      .update({ owner_user_id: userId })
+      .eq("id", tenant.id);
 
     return new Response(
       JSON.stringify({ tenant_id: tenant.id, user_id: userId }),
