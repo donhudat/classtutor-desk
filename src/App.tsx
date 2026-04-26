@@ -15,6 +15,7 @@ import SessionsPage from "@/pages/Sessions";
 import AttendancePage from "@/pages/Attendance";
 import AssignmentsPage from "@/pages/Assignments";
 import AssignmentDetailPage from "@/pages/AssignmentDetail";
+import SubmissionsPage from "@/pages/Submissions";
 import ComingSoon from "@/pages/ComingSoon";
 import NotFound from "@/pages/NotFound";
 
@@ -100,6 +101,14 @@ const App = () => (
                 element={
                   <ProtectedRoute allow={["teacher"]}>
                     <AssignmentDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/submissions"
+                element={
+                  <ProtectedRoute allow={["teacher"]}>
+                    <SubmissionsPage />
                   </ProtectedRoute>
                 }
               />
