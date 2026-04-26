@@ -33,6 +33,8 @@ import { GenerateSessionsDialog } from "@/features/sessions/GenerateSessionsDial
 type ClassRow = {
   id: number;
   name: string;
+  subject: string | null;
+  grade_level: number | null;
   start_date: string;
   end_date: string | null;
   schedule: { weekday: number; start: string; end: string }[] | null;
@@ -72,7 +74,7 @@ export default function SessionsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("classes")
-        .select("id, name, start_date, end_date, schedule")
+        .select("id, name, subject, grade_level, start_date, end_date, schedule")
         .is("deleted_at", null)
         .order("name");
       if (error) throw error;
@@ -97,8 +99,8 @@ export default function SessionsPage() {
   });
 
   const classMap = useMemo(() => {
-    const m = new Map<number, string>();
-    (classesQ.data ?? []).forEach((c) => m.set(c.id, c.name));
+    const m = new Map<number, ClassRow>();
+    (classesQ.data ?? []).forEach((c) => m.set(c.id, c));
     return m;
   }, [classesQ.data]);
 
@@ -186,7 +188,22 @@ export default function SessionsPage() {
             <CardContent className="flex flex-wrap items-center gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-display text-base">{classMap.get(s.class_id) ?? `Lớp #${s.class_id}`}</span>
+                  {(() => {
+                    const cls = classMap.get(s.class_id);
+                    return (
+                      <>
+                        <span className="font-display text-base">
+                          {cls?.name ?? `Lớp #${s.class_id}`}
+                        </span>
+                        {cls?.grade_level && (
+                          <Badge variant="outline">Lớp {cls.grade_level}</Badge>
+                        )}
+                        {cls?.subject && (
+                          <Badge variant="secondary">{cls.subject}</Badge>
+                        )}
+                      </>
+                    );
+                  })()}
                   <Badge variant={STATUS_VARIANT[s.status]}>{STATUS_LABEL[s.status]}</Badge>
                   {s.attendance_taken_at && (
                     <Badge variant="outline" className="border-primary/40 text-primary">
