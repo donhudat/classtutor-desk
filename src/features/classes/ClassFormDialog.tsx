@@ -15,6 +15,13 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const WEEKDAYS = [
   { v: 1, label: "T2" },
@@ -26,9 +33,25 @@ const WEEKDAYS = [
   { v: 0, label: "CN" },
 ];
 
+const GRADE_LEVELS = Array.from({ length: 12 }, (_, i) => i + 1);
+const SUBJECTS = [
+  "Toán",
+  "Ngữ văn",
+  "Tiếng Anh",
+  "Vật lý",
+  "Hoá học",
+  "Sinh học",
+  "Lịch sử",
+  "Địa lý",
+  "GDCD",
+  "Tin học",
+  "Khác",
+];
+
 const schema = z.object({
   name: z.string().trim().min(1, "Nhập tên lớp").max(100),
-  subject: z.string().trim().max(100).optional(),
+  subject: z.string().trim().min(1, "Chọn môn học").max(100),
+  grade_level: z.number().int().min(1).max(12),
   start_date: z.string().min(1, "Chọn ngày bắt đầu"),
   end_date: z.string().optional(),
   note: z.string().max(500).optional(),
@@ -38,6 +61,7 @@ export type ClassEditing = {
   id?: number;
   name?: string;
   subject?: string | null;
+  grade_level?: number | null;
   start_date?: string;
   end_date?: string | null;
   note?: string | null;
@@ -53,12 +77,13 @@ export function ClassFormDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   editing?: ClassEditing | null;
-  onSaved?: () => void;
+  onSaved?: (newId?: number, name?: string) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     name: "",
     subject: "",
+    grade_level: "",
     start_date: "",
     end_date: "",
     note: "",
@@ -72,6 +97,7 @@ export function ClassFormDialog({
       setForm({
         name: editing?.name ?? "",
         subject: editing?.subject ?? "",
+        grade_level: editing?.grade_level ? String(editing.grade_level) : "",
         start_date: editing?.start_date ?? "",
         end_date: editing?.end_date ?? "",
         note: editing?.note ?? "",
@@ -90,7 +116,10 @@ export function ClassFormDialog({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const parsed = schema.safeParse(form);
+    const parsed = schema.safeParse({
+      ...form,
+      grade_level: form.grade_level ? Number(form.grade_level) : NaN,
+    });
     if (!parsed.success) {
       toast({ title: "Lỗi", description: parsed.error.errors[0].message, variant: "destructive" });
       return;
@@ -107,7 +136,8 @@ export function ClassFormDialog({
     const schedule = days.map((d) => ({ weekday: d, start: startTime, end: endTime }));
     const payload = {
       name: parsed.data.name,
-      subject: parsed.data.subject || null,
+      subject: parsed.data.subject,
+      grade_level: parsed.data.grade_level,
       start_date: parsed.data.start_date,
       end_date: parsed.data.end_date || null,
       note: parsed.data.note || null,
@@ -115,7 +145,8 @@ export function ClassFormDialog({
     };
 
     setLoading(true);
-    let error;
+    let error: any;
+    let insertedId: number | undefined;
     if (editing?.id) {
       ({ error } = await supabase.from("classes").update(payload).eq("id", editing.id));
     } else {
@@ -137,7 +168,13 @@ export function ClassFormDialog({
         toast({ title: "Lỗi", description: "Không tìm thấy profile", variant: "destructive" });
         return;
       }
-      ({ error } = await supabase.from("classes").insert({ ...payload, tenant_id: prof.tenant_id }));
+      const ins = await supabase
+        .from("classes")
+        .insert({ ...payload, tenant_id: prof.tenant_id })
+        .select("id")
+        .single();
+      error = ins.error;
+      insertedId = ins.data?.id;
     }
     setLoading(false);
     if (error) {
@@ -145,7 +182,7 @@ export function ClassFormDialog({
       return;
     }
     toast({ title: editing?.id ? "Đã cập nhật lớp" : "Đã tạo lớp" });
-    onSaved?.();
+    onSaved?.(insertedId, parsed.data.name);
     onOpenChange(false);
   };
 
@@ -171,13 +208,41 @@ export function ClassFormDialog({
                 placeholder="vd: Toán 9 — Ca tối T246"
               />
             </div>
-            <div className="col-span-2">
-              <Label>Môn (tuỳ chọn)</Label>
-              <Input
+            <div>
+              <Label>Khối lớp</Label>
+              <Select
+                value={form.grade_level}
+                onValueChange={(v) => setForm({ ...form, grade_level: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn khối" />
+                </SelectTrigger>
+                <SelectContent>
+                  {GRADE_LEVELS.map((g) => (
+                    <SelectItem key={g} value={String(g)}>
+                      Lớp {g}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Môn học</Label>
+              <Select
                 value={form.subject}
-                onChange={(e) => setForm({ ...form, subject: e.target.value })}
-                placeholder="vd: Toán"
-              />
+                onValueChange={(v) => setForm({ ...form, subject: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn môn" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SUBJECTS.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Ngày bắt đầu</Label>
