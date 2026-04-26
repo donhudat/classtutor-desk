@@ -1,1 +1,4 @@
 project_id = "mbdestqerddfnbttendb"
+
+[functions.reset-managed-password]
+verify_jwt = false

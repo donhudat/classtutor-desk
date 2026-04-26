@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Trash2, Pencil } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, KeyRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { CreateUserDialog } from "@/features/students/CreateUserDialog";
 import { EditUserDialog, type EditingUser } from "@/features/students/EditUserDialog";
+import { ResetPasswordDialog } from "@/features/students/ResetPasswordDialog";
 import { formatDate } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -33,6 +34,8 @@ export default function StudentsPage() {
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<EditingUser | null>(null);
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwTarget, setPwTarget] = useState<{ user_id: string; full_name: string; login_id: string } | null>(null);
   const [q, setQ] = useState("");
 
   const studentsQ = useQuery({
@@ -124,7 +127,7 @@ export default function StudentsPage() {
               <TableHead>Ngày sinh</TableHead>
               <TableHead>Phụ huynh</TableHead>
               <TableHead>SĐT</TableHead>
-              <TableHead className="w-24" />
+              <TableHead className="w-32" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -176,6 +179,22 @@ export default function StudentsPage() {
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      title="Đặt lại mật khẩu"
+                      onClick={() => {
+                        setPwTarget({
+                          user_id: s.user_id,
+                          full_name: s.profiles?.full_name ?? "",
+                          login_id: s.profiles?.login_id ?? "",
+                        });
+                        setPwOpen(true);
+                      }}
+                    >
+                      <KeyRound className="h-4 w-4" />
+                    </Button>
                     <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
@@ -220,6 +239,14 @@ export default function StudentsPage() {
         editing={editing}
         parents={parentsQ.data ?? []}
         onSaved={() => qc.invalidateQueries({ queryKey: ["students"] })}
+      />
+
+      <ResetPasswordDialog
+        open={pwOpen}
+        onOpenChange={setPwOpen}
+        userId={pwTarget?.user_id ?? null}
+        fullName={pwTarget?.full_name}
+        loginId={pwTarget?.login_id}
       />
     </div>
   );
