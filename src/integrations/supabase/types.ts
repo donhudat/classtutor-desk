@@ -339,6 +339,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           end_date: string | null
+          grade_level: number | null
           id: number
           name: string
           note: string | null
@@ -352,6 +353,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           end_date?: string | null
+          grade_level?: number | null
           id?: number
           name: string
           note?: string | null
@@ -365,6 +367,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           end_date?: string | null
+          grade_level?: number | null
           id?: number
           name?: string
           note?: string | null
