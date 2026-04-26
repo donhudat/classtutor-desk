@@ -22,6 +22,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { FileUploader } from "@/components/FileUploader";
+import type { StoredFile } from "@/lib/storage";
 
 export type AssignmentEditing = {
   id?: number;
@@ -30,6 +32,7 @@ export type AssignmentEditing = {
   description?: string | null;
   max_score?: number;
   deadline?: string | null;
+  attachments?: StoredFile[] | null;
 };
 
 const schema = z.object({
@@ -73,6 +76,7 @@ export function AssignmentFormDialog({
   const [desc, setDesc] = useState("");
   const [maxScore, setMaxScore] = useState("10");
   const [deadline, setDeadline] = useState("");
+  const [attachments, setAttachments] = useState<StoredFile[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -81,6 +85,7 @@ export function AssignmentFormDialog({
     setDesc(editing?.description ?? "");
     setMaxScore(String(editing?.max_score ?? 10));
     setDeadline(fromISOLocal(editing?.deadline ?? null));
+    setAttachments(Array.isArray(editing?.attachments) ? (editing!.attachments as StoredFile[]) : []);
   }, [open, editing, defaultClassId, classes]);
 
   const submit = async (e: React.FormEvent) => {
@@ -103,6 +108,7 @@ export function AssignmentFormDialog({
       description: parsed.data.description || null,
       max_score: parsed.data.max_score,
       deadline: toLocalISO(parsed.data.deadline || ""),
+      attachments: attachments as unknown as any,
     };
     setLoading(true);
     let error;
@@ -159,6 +165,17 @@ export function AssignmentFormDialog({
           <div>
             <Label>Mô tả</Label>
             <Textarea value={desc} onChange={(e) => setDesc(e.target.value)} rows={4} maxLength={2000} />
+          </div>
+          <div>
+            <Label>File đính kèm cho học sinh</Label>
+            <div className="mt-1">
+              <FileUploader
+                bucket="assignment-attachments"
+                pathPrefix={`tenant-${profile?.tenant_id ?? 0}/assignments`}
+                files={attachments}
+                onChange={setAttachments}
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

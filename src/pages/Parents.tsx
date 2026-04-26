@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import { CreateUserDialog } from "@/features/students/CreateUserDialog";
+import { EditUserDialog, type EditingUser } from "@/features/students/EditUserDialog";
 import { toast } from "@/hooks/use-toast";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -29,6 +30,8 @@ type ParentRow = {
 export default function ParentsPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState<EditingUser | null>(null);
   const [q, setQ] = useState("");
 
   const parentsQ = useQuery({
@@ -100,7 +103,7 @@ export default function ParentsPage() {
               <TableHead>Login ID</TableHead>
               <TableHead>SĐT</TableHead>
               <TableHead>Số con</TableHead>
-              <TableHead className="w-12" />
+              <TableHead className="w-24" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -130,7 +133,24 @@ export default function ParentsPage() {
                   <Badge variant="secondary">{p.students?.length ?? 0}</Badge>
                 </TableCell>
                 <TableCell>
-                  <AlertDialog>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setEditing({
+                          id: p.id,
+                          user_id: p.user_id,
+                          full_name: p.profiles?.full_name ?? "",
+                          phone: p.phone,
+                        });
+                        setEditOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
                         <Trash2 className="h-4 w-4" />
@@ -150,7 +170,8 @@ export default function ParentsPage() {
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
-                  </AlertDialog>
+                    </AlertDialog>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -163,6 +184,14 @@ export default function ParentsPage() {
         onOpenChange={setOpen}
         role="parent"
         onCreated={() => qc.invalidateQueries({ queryKey: ["parents"] })}
+      />
+
+      <EditUserDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        role="parent"
+        editing={editing}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["parents"] })}
       />
     </div>
   );

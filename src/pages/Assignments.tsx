@@ -28,6 +28,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { AssignmentFormDialog, AssignmentEditing } from "@/features/assignments/AssignmentFormDialog";
+import { FileList } from "@/components/FileList";
+import type { StoredFile } from "@/lib/storage";
 
 type Row = {
   id: number;
@@ -36,6 +38,7 @@ type Row = {
   description: string | null;
   max_score: number;
   deadline: string | null;
+  attachments: StoredFile[] | null;
 };
 
 export default function AssignmentsPage() {
@@ -62,13 +65,16 @@ export default function AssignmentsPage() {
     queryFn: async () => {
       let q = supabase
         .from("assignments")
-        .select("id, class_id, title, description, max_score, deadline")
+        .select("id, class_id, title, description, max_score, deadline, attachments")
         .is("deleted_at", null)
         .order("id", { ascending: false });
       if (classFilter !== "all") q = q.eq("class_id", Number(classFilter));
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as Row[];
+      return (data ?? []).map((r: any) => ({
+        ...r,
+        attachments: Array.isArray(r.attachments) ? (r.attachments as StoredFile[]) : [],
+      })) as Row[];
     },
   });
 
@@ -159,6 +165,11 @@ export default function AssignmentsPage() {
                   </div>
                   {a.description && (
                     <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{a.description}</p>
+                  )}
+                  {a.attachments && a.attachments.length > 0 && (
+                    <div className="mt-2">
+                      <FileList bucket="assignment-attachments" files={a.attachments} compact />
+                    </div>
                   )}
                 </div>
                 <div className="flex shrink-0 gap-1">
