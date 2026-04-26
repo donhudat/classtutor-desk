@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Plus, Search, Trash2, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import { CreateUserDialog } from "@/features/students/CreateUserDialog";
+import { EditUserDialog, type EditingUser } from "@/features/students/EditUserDialog";
 import { formatDate } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -30,6 +31,8 @@ type StudentRow = {
 export default function StudentsPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState<EditingUser | null>(null);
   const [q, setQ] = useState("");
 
   const studentsQ = useQuery({
@@ -121,7 +124,7 @@ export default function StudentsPage() {
               <TableHead>Ngày sinh</TableHead>
               <TableHead>Phụ huynh</TableHead>
               <TableHead>SĐT</TableHead>
-              <TableHead className="w-12" />
+              <TableHead className="w-24" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -154,7 +157,26 @@ export default function StudentsPage() {
                 <TableCell>{s.parents?.profiles?.full_name ?? "—"}</TableCell>
                 <TableCell>{s.profiles?.phone ?? "—"}</TableCell>
                 <TableCell>
-                  <AlertDialog>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setEditing({
+                          id: s.id,
+                          user_id: s.user_id,
+                          full_name: s.profiles?.full_name ?? "",
+                          phone: s.profiles?.phone ?? null,
+                          date_of_birth: s.date_of_birth,
+                          parent_id: s.parent_id,
+                        });
+                        setEditOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
                         <Trash2 className="h-4 w-4" />
@@ -174,7 +196,8 @@ export default function StudentsPage() {
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
-                  </AlertDialog>
+                    </AlertDialog>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -188,6 +211,15 @@ export default function StudentsPage() {
         role="student"
         parents={parentsQ.data ?? []}
         onCreated={() => qc.invalidateQueries({ queryKey: ["students"] })}
+      />
+
+      <EditUserDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        role="student"
+        editing={editing}
+        parents={parentsQ.data ?? []}
+        onSaved={() => qc.invalidateQueries({ queryKey: ["students"] })}
       />
     </div>
   );
