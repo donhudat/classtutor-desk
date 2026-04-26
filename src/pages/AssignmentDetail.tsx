@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { FileList } from "@/components/FileList";
+import type { StoredFile } from "@/lib/storage";
 
 type Assignment = {
   id: number;
@@ -20,6 +22,7 @@ type Assignment = {
   description: string | null;
   max_score: number;
   deadline: string | null;
+  attachments: StoredFile[] | null;
   classes?: { name: string } | null;
 };
 
@@ -57,11 +60,17 @@ export default function AssignmentDetailPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("assignments")
-        .select("id, class_id, title, description, max_score, deadline, classes(name)")
+        .select("id, class_id, title, description, max_score, deadline, attachments, classes(name)")
         .eq("id", aid)
         .maybeSingle();
       if (error) throw error;
-      return data as Assignment | null;
+      if (!data) return null;
+      return {
+        ...(data as any),
+        attachments: Array.isArray((data as any).attachments)
+          ? ((data as any).attachments as StoredFile[])
+          : [],
+      } as Assignment;
     },
   });
 
@@ -179,6 +188,17 @@ export default function AssignmentDetailPage() {
         <Card className="mb-4 border-border/80">
           <CardContent className="whitespace-pre-wrap py-4 text-sm">
             {aQ.data.description}
+          </CardContent>
+        </Card>
+      )}
+
+      {aQ.data?.attachments && aQ.data.attachments.length > 0 && (
+        <Card className="mb-4 border-border/80">
+          <CardContent className="space-y-2 py-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              File giáo viên gửi
+            </div>
+            <FileList bucket="assignment-attachments" files={aQ.data.attachments} />
           </CardContent>
         </Card>
       )}
