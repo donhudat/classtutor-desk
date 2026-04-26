@@ -228,7 +228,7 @@ export function EnrollmentsDialog({
         <DialogHeader>
           <DialogTitle className="font-display text-xl">Học sinh — {className}</DialogTitle>
           <DialogDescription>
-            Thêm học sinh, gắn phụ huynh, đặt học phí mỗi buổi và theo dõi số buổi đã học.
+            Thêm học sinh, đặt học phí mỗi buổi và theo dõi số buổi đã học. Phụ huynh được gắn ở trang <span className="font-medium text-foreground">Học sinh</span> (mỗi học sinh liên kết tới 1 phụ huynh).
           </DialogDescription>
         </DialogHeader>
 

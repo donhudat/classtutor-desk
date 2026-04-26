@@ -22,6 +22,7 @@ type ClassRow = {
   id: number;
   name: string;
   subject: string | null;
+  grade_level: number | null;
   start_date: string;
   end_date: string | null;
   note: string | null;
@@ -41,7 +42,7 @@ export default function ClassesPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("classes")
-        .select("id, name, subject, start_date, end_date, note, schedule")
+        .select("id, name, subject, grade_level, start_date, end_date, note, schedule")
         .is("deleted_at", null)
         .order("id", { ascending: false });
       if (error) throw error;
@@ -150,9 +151,12 @@ export default function ClassesPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <CardTitle className="font-display text-lg leading-tight">{c.name}</CardTitle>
-                    {c.subject && (
-                      <Badge variant="secondary" className="mt-2">{c.subject}</Badge>
-                    )}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {c.grade_level && (
+                        <Badge variant="outline">Lớp {c.grade_level}</Badge>
+                      )}
+                      {c.subject && <Badge variant="secondary">{c.subject}</Badge>}
+                    </div>
                   </div>
                   <div className="flex shrink-0 gap-1">
                     <Button
