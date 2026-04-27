@@ -1,0 +1,416 @@
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { CalendarDays, Clock, FileText, MessageSquare, ClipboardCheck } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { PageHeader } from "@/features/layout/PageHeader";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { formatDate, formatDateTime } from "@/lib/format";
+import { useAuth } from "@/features/auth/AuthProvider";
+import { FileList } from "@/components/FileList";
+import type { StoredFile } from "@/lib/storage";
+
+type Child = {
+  id: number;
+  user_id: string;
+  full_name: string;
+  login_id: string;
+};
+
+const ATT_LABEL: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
+  attended: { label: "Có mặt", variant: "default" },
+  late: { label: "Đi muộn", variant: "secondary" },
+  absent: { label: "Vắng", variant: "destructive" },
+  absent_excused: { label: "Vắng có phép", variant: "outline" },
+};
+
+export default function MyChildrenPage() {
+  const { user } = useAuth();
+  const [childId, setChildId] = useState<string>("");
+
+  const parentQ = useQuery({
+    queryKey: ["my-parent-id", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("parents")
+        .select("id")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.id ?? null;
+    },
+  });
+
+  const childrenQ = useQuery({
+    queryKey: ["my-children", parentQ.data],
+    enabled: !!parentQ.data,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("students")
+        .select("id, user_id, profiles(full_name, login_id)")
+        .eq("parent_id", parentQ.data!)
+        .is("deleted_at", null);
+      if (error) throw error;
+      return (data ?? []).map((s: any) => ({
+        id: s.id,
+        user_id: s.user_id,
+        full_name: s.profiles?.full_name ?? "—",
+        login_id: s.profiles?.login_id ?? "",
+      })) as Child[];
+    },
+  });
+
+  useEffect(() => {
+    if (childrenQ.data && childrenQ.data.length > 0 && !childId) {
+      setChildId(String(childrenQ.data[0].id));
+    }
+  }, [childrenQ.data, childId]);
+
+  const selectedId = childId ? Number(childId) : null;
+
+  const enrollQ = useQuery({
+    queryKey: ["child-enrollments", selectedId],
+    enabled: !!selectedId,
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("class_enrollments")
+        .select("class_id, end_date, classes(id, name, subject, grade_level)")
+        .eq("student_id", selectedId!)
+        .is("deleted_at", null);
+      if (error) throw error;
+      return (data ?? []).filter((e: any) => !e.end_date || e.end_date >= today);
+    },
+  });
+
+  const classIds = useMemo(
+    () => (enrollQ.data ?? []).map((e: any) => e.class_id),
+    [enrollQ.data],
+  );
+
+  const sessionsQ = useQuery({
+    queryKey: ["child-sessions", selectedId, classIds],
+    enabled: !!selectedId && classIds.length > 0,
+    queryFn: async () => {
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from("class_sessions")
+        .select("id, class_id, starts_at, ends_at, status, note")
+        .in("class_id", classIds)
+        .is("deleted_at", null)
+        .gte("ends_at", now)
+        .neq("status", "cancelled")
+        .order("starts_at", { ascending: true })
+        .limit(20);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const assignmentsQ = useQuery({
+    queryKey: ["child-assignments", selectedId, classIds],
+    enabled: !!selectedId && classIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("assignments")
+        .select("id, class_id, title, description, max_score, deadline, attachments, classes(name)")
+        .in("class_id", classIds)
+        .is("deleted_at", null)
+        .order("deadline", { ascending: false, nullsFirst: false });
+      if (error) throw error;
+      return (data ?? []).map((r: any) => ({
+        ...r,
+        attachments: Array.isArray(r.attachments) ? (r.attachments as StoredFile[]) : [],
+      }));
+    },
+  });
+
+  const submissionsQ = useQuery({
+    queryKey: ["child-submissions", selectedId],
+    enabled: !!selectedId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("submissions")
+        .select("id, assignment_id, status, score, feedback, submitted_at, returned_at")
+        .eq("student_id", selectedId!);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const subMap = useMemo(() => {
+    const m = new Map<number, any>();
+    (submissionsQ.data ?? []).forEach((s: any) => m.set(s.assignment_id, s));
+    return m;
+  }, [submissionsQ.data]);
+
+  const feedbacksQ = useQuery({
+    queryKey: ["child-feedbacks", selectedId],
+    enabled: !!selectedId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("feedbacks")
+        .select("id, content, created_at, session_id, class_sessions(starts_at, classes(name))")
+        .eq("student_id", selectedId!)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const attendanceQ = useQuery({
+    queryKey: ["child-attendance", selectedId],
+    enabled: !!selectedId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("attendances")
+        .select("id, status, note, checked_in_at, class_sessions(starts_at, classes(name))")
+        .eq("student_id", selectedId!)
+        .order("id", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const children = childrenQ.data ?? [];
+
+  if (parentQ.isFetched && !parentQ.data) {
+    return (
+      <div>
+        <PageHeader title="Con của tôi" description="Theo dõi quá trình học tập." />
+        <Card className="border-dashed border-border/80 bg-card/40">
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            Tài khoản chưa được liên kết với hồ sơ phụ huynh.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <PageHeader
+        title="Con của tôi"
+        description="Theo dõi lịch học, bài tập, điểm danh và nhận xét của con."
+      />
+
+      {children.length === 0 && childrenQ.isFetched && (
+        <Card className="border-dashed border-border/80 bg-card/40">
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            Chưa có học sinh nào liên kết với tài khoản của bạn.
+          </CardContent>
+        </Card>
+      )}
+
+      {children.length > 0 && (
+        <>
+          <div className="mb-4 flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">Chọn con:</span>
+            <Select value={childId} onValueChange={setChildId}>
+              <SelectTrigger className="w-[260px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {children.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.full_name} (@{c.login_id})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Tabs defaultValue="schedule">
+            <TabsList>
+              <TabsTrigger value="schedule">
+                <CalendarDays className="mr-1 h-4 w-4" /> Lịch học
+              </TabsTrigger>
+              <TabsTrigger value="assignments">
+                <FileText className="mr-1 h-4 w-4" /> Bài tập
+              </TabsTrigger>
+              <TabsTrigger value="attendance">
+                <ClipboardCheck className="mr-1 h-4 w-4" /> Điểm danh
+              </TabsTrigger>
+              <TabsTrigger value="feedback">
+                <MessageSquare className="mr-1 h-4 w-4" /> Nhận xét
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="schedule" className="mt-4 space-y-4">
+              <div>
+                <h3 className="mb-2 font-display text-base">Lớp đang học</h3>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {(enrollQ.data ?? []).map((e: any) => (
+                    <Card key={e.class_id} className="border-border/80">
+                      <CardContent className="flex flex-wrap items-center gap-2 py-3">
+                        <span className="font-display">{e.classes?.name}</span>
+                        {e.classes?.grade_level && (
+                          <Badge variant="outline">Lớp {e.classes.grade_level}</Badge>
+                        )}
+                        {e.classes?.subject && (
+                          <Badge variant="secondary">{e.classes.subject}</Badge>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h3 className="mb-2 font-display text-base">Buổi học sắp tới</h3>
+                {(sessionsQ.data ?? []).length === 0 && !sessionsQ.isLoading && (
+                  <p className="text-sm text-muted-foreground">Chưa có buổi sắp tới.</p>
+                )}
+                <div className="space-y-2">
+                  {(sessionsQ.data ?? []).map((s: any) => {
+                    const cls = (enrollQ.data ?? []).find(
+                      (e: any) => e.class_id === s.class_id,
+                    )?.classes;
+                    const ends = new Date(s.ends_at);
+                    return (
+                      <Card key={s.id} className="border-border/80">
+                        <CardContent className="flex items-center gap-3 px-4 py-3">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium">{cls?.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatDateTime(s.starts_at)} →{" "}
+                              {ends.toLocaleTimeString("vi-VN", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="assignments" className="mt-4 space-y-2">
+              {(assignmentsQ.data ?? []).length === 0 && !assignmentsQ.isLoading && (
+                <p className="text-sm text-muted-foreground">Chưa có bài tập nào.</p>
+              )}
+              {(assignmentsQ.data ?? []).map((a: any) => {
+                const sub = subMap.get(a.id);
+                return (
+                  <Card key={a.id} className="border-border/80">
+                    <CardContent className="space-y-2 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display">{a.title}</span>
+                        <Badge variant="secondary">{a.classes?.name}</Badge>
+                        {a.deadline && (
+                          <Badge variant="outline">
+                            Hạn: {formatDateTime(a.deadline)}
+                          </Badge>
+                        )}
+                        {sub ? (
+                          <Badge
+                            variant={
+                              sub.status === "graded" || sub.status === "returned"
+                                ? "default"
+                                : "secondary"
+                            }
+                          >
+                            {sub.status === "graded"
+                              ? "Đã chấm"
+                              : sub.status === "returned"
+                                ? "Đã trả"
+                                : "Đã nộp"}
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive">Chưa nộp</Badge>
+                        )}
+                        {sub?.score != null && (
+                          <Badge variant="default">
+                            {sub.score}/{a.max_score}
+                          </Badge>
+                        )}
+                      </div>
+                      {a.description && (
+                        <p className="line-clamp-2 text-sm text-muted-foreground">
+                          {a.description}
+                        </p>
+                      )}
+                      {a.attachments?.length > 0 && (
+                        <FileList
+                          bucket="assignment-attachments"
+                          files={a.attachments}
+                          compact
+                        />
+                      )}
+                      {sub?.feedback && (
+                        <div className="rounded-md border border-primary/30 bg-primary/5 p-2 text-sm">
+                          <div className="text-xs font-medium uppercase tracking-wide text-primary">
+                            Nhận xét
+                          </div>
+                          <p className="whitespace-pre-wrap">{sub.feedback}</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </TabsContent>
+
+            <TabsContent value="attendance" className="mt-4 space-y-2">
+              {(attendanceQ.data ?? []).length === 0 && !attendanceQ.isLoading && (
+                <p className="text-sm text-muted-foreground">Chưa có dữ liệu điểm danh.</p>
+              )}
+              {(attendanceQ.data ?? []).map((a: any) => {
+                const meta = ATT_LABEL[a.status] ?? { label: a.status, variant: "outline" as const };
+                return (
+                  <Card key={a.id} className="border-border/80">
+                    <CardContent className="flex flex-wrap items-center gap-3 px-4 py-3">
+                      <Badge variant={meta.variant}>{meta.label}</Badge>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium">
+                          {a.class_sessions?.classes?.name ?? "—"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatDate(a.class_sessions?.starts_at)}
+                          {a.note && ` • ${a.note}`}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </TabsContent>
+
+            <TabsContent value="feedback" className="mt-4 space-y-2">
+              {(feedbacksQ.data ?? []).length === 0 && !feedbacksQ.isLoading && (
+                <p className="text-sm text-muted-foreground">Chưa có nhận xét nào.</p>
+              )}
+              {(feedbacksQ.data ?? []).map((f: any) => (
+                <Card key={f.id} className="border-border/80">
+                  <CardContent className="space-y-1 py-3">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline">
+                        {f.class_sessions?.classes?.name ?? "—"}
+                      </Badge>
+                      <span>{formatDate(f.class_sessions?.starts_at)}</span>
+                    </div>
+                    <p className="whitespace-pre-wrap text-sm">{f.content}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </TabsContent>
+          </Tabs>
+        </>
+      )}
+    </div>
+  );
+}

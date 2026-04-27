@@ -18,6 +18,9 @@ import AssignmentDetailPage from "@/pages/AssignmentDetail";
 import SubmissionsPage from "@/pages/Submissions";
 import ComingSoon from "@/pages/ComingSoon";
 import NotFound from "@/pages/NotFound";
+import MyClassesPage from "@/pages/student/MyClasses";
+import MyAssignmentsPage from "@/pages/student/MyAssignments";
+import MyChildrenPage from "@/pages/parent/MyChildren";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
@@ -114,9 +117,30 @@ const App = () => (
               />
               <Route path="/payments" element={<ComingSoon title="Học phí" />} />
               <Route path="/settings" element={<ComingSoon title="Cài đặt" />} />
-              <Route path="/my-classes" element={<ComingSoon title="Lớp của tôi" />} />
-              <Route path="/my-assignments" element={<ComingSoon title="Bài tập" />} />
-              <Route path="/my-children" element={<ComingSoon title="Con của tôi" />} />
+              <Route
+                path="/my-classes"
+                element={
+                  <ProtectedRoute allow={["student"]}>
+                    <MyClassesPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/my-assignments"
+                element={
+                  <ProtectedRoute allow={["student"]}>
+                    <MyAssignmentsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/my-children"
+                element={
+                  <ProtectedRoute allow={["parent"]}>
+                    <MyChildrenPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="/my-payments" element={<ComingSoon title="Học phí" />} />
             </Route>
             <Route path="/onboarding" element={<Navigate to="/auth" replace />} />
