@@ -40,6 +40,7 @@ type SubmissionRow = {
   feedback: string | null;
   submitted_at: string;
   returned_at: string | null;
+  graded_at: string | null;
   students: { profiles: { full_name: string; login_id: string } | null } | null;
   submission_files: {
     id: number;
@@ -110,7 +111,7 @@ export default function SubmissionsPage() {
       let q = supabase
         .from("submissions")
         .select(
-          `id, student_id, assignment_id, status, content, score, feedback, submitted_at, returned_at,
+          `id, student_id, assignment_id, status, content, score, feedback, submitted_at, returned_at, graded_at,
            students(profiles:profiles!students_user_id_fkey(full_name, login_id)),
            submission_files(id, file_name, file_size, mime_type, storage_path)`,
         )
