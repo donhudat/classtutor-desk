@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, Save, Check, FileText } from "lucide-react";
+import { Search, Save, Check, FileText, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +39,8 @@ type SubmissionRow = {
   score: number | null;
   feedback: string | null;
   submitted_at: string;
+  returned_at: string | null;
+  graded_at: string | null;
   students: { profiles: { full_name: string; login_id: string } | null } | null;
   submission_files: {
     id: number;
@@ -109,7 +111,7 @@ export default function SubmissionsPage() {
       let q = supabase
         .from("submissions")
         .select(
-          `id, student_id, assignment_id, status, content, score, feedback, submitted_at,
+          `id, student_id, assignment_id, status, content, score, feedback, submitted_at, returned_at, graded_at,
            students(profiles:profiles!students_user_id_fkey(full_name, login_id)),
            submission_files(id, file_name, file_size, mime_type, storage_path)`,
         )
@@ -178,6 +180,44 @@ export default function SubmissionsPage() {
       return;
     }
     toast({ title: "Đã lưu chấm" });
+    setDrafts((cur) => {
+      const c = { ...cur };
+      delete c[s.id];
+      return c;
+    });
+    qc.invalidateQueries({ queryKey: ["all-submissions"] });
+  };
+
+  const returnWork = async (s: SubmissionRow) => {
+    if (!profile) return;
+    const a = aMap.get(s.assignment_id);
+    const draft = draftFor(s);
+    const scoreN = draft.score === "" ? null : Number(draft.score);
+    if (scoreN != null && a && (Number.isNaN(scoreN) || scoreN < 0 || scoreN > a.max_score)) {
+      toast({
+        title: "Điểm không hợp lệ",
+        description: `Trong khoảng 0–${a.max_score}`,
+        variant: "destructive",
+      });
+      return;
+    }
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("submissions")
+      .update({
+        score: scoreN,
+        feedback: draft.feedback?.trim() || null,
+        status: "returned",
+        graded_by: profile.id,
+        graded_at: s.graded_at ?? (scoreN != null ? now : null),
+        returned_at: now,
+      } as never)
+      .eq("id", s.id);
+    if (error) {
+      toast({ title: "Lỗi", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Đã trả bài cho học sinh" });
     setDrafts((cur) => {
       const c = { ...cur };
       delete c[s.id];
@@ -305,6 +345,7 @@ export default function SubmissionsPage() {
                     <div className="text-xs text-muted-foreground">
                       Nộp: {formatDateTime(s.submitted_at)}
                       {a?.deadline && ` • Hạn: ${formatDateTime(a.deadline)}`}
+                      {s.returned_at && ` • Trả: ${formatDateTime(s.returned_at)}`}
                     </div>
                   </div>
                 </div>
@@ -326,7 +367,7 @@ export default function SubmissionsPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_1fr_auto]">
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_1fr_auto_auto]">
                   <Input
                     type="number"
                     step={0.1}
@@ -345,6 +386,15 @@ export default function SubmissionsPage() {
                   <Button onClick={() => grade(s)} size="sm">
                     {draft.score ? <Check className="mr-1 h-4 w-4" /> : <Save className="mr-1 h-4 w-4" />}
                     {draft.score ? "Chấm" : "Lưu"}
+                  </Button>
+                  <Button
+                    onClick={() => returnWork(s)}
+                    size="sm"
+                    variant="secondary"
+                    title="Trả bài kèm nhận xét cho học sinh"
+                  >
+                    <Send className="mr-1 h-4 w-4" />
+                    Trả bài
                   </Button>
                 </div>
               </CardContent>

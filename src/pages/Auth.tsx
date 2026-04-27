@@ -18,7 +18,6 @@ const teacherLogin = z.object({
 });
 const userLogin = z.object({
   login_id: z.string().trim().min(3, "Tối thiểu 3 ký tự").regex(/^[a-z0-9_]+$/i, "Chỉ chữ, số, _"),
-  tenant_id: z.coerce.number().int().positive("Mã lớp không hợp lệ"),
   password: z.string().min(1, "Nhập mật khẩu"),
   role: z.enum(["student", "parent"]),
 });
@@ -100,7 +99,6 @@ function LoginCard() {
 
   // student/parent
   const [loginId, setLoginId] = useState("");
-  const [tenantId, setTenantId] = useState("");
   const [uPassword, setUPassword] = useState("");
 
   const handleTeacher = async (e: React.FormEvent) => {
@@ -127,7 +125,6 @@ function LoginCard() {
     e.preventDefault();
     const parsed = userLogin.safeParse({
       login_id: loginId,
-      tenant_id: tenantId,
       password: uPassword,
       role: tab,
     });
@@ -135,8 +132,23 @@ function LoginCard() {
       toast({ title: "Lỗi", description: parsed.error.errors[0].message, variant: "destructive" });
       return;
     }
-    const virtualEmail = `tnt${parsed.data.tenant_id}_${parsed.data.role.slice(0, 3)}_${parsed.data.login_id.toLowerCase()}@app.local`;
     setLoading(true);
+    // Resolve tenant_id from login_id + role (server-side, public function)
+    const { data: resolved, error: resolveErr } = await supabase.functions.invoke(
+      "resolve-login",
+      { body: { login_id: parsed.data.login_id, role: parsed.data.role } },
+    );
+    if (resolveErr || (resolved as any)?.error || !(resolved as any)?.tenant_id) {
+      setLoading(false);
+      toast({
+        title: "Đăng nhập thất bại",
+        description: "Sai login ID hoặc mật khẩu",
+        variant: "destructive",
+      });
+      return;
+    }
+    const tenantId = (resolved as any).tenant_id as number;
+    const virtualEmail = `tnt${tenantId}_${parsed.data.role.slice(0, 3)}_${parsed.data.login_id.toLowerCase()}@app.local`;
     const { error } = await supabase.auth.signInWithPassword({
       email: virtualEmail,
       password: parsed.data.password,
@@ -145,7 +157,7 @@ function LoginCard() {
     if (error) {
       toast({
         title: "Đăng nhập thất bại",
-        description: "Sai mã lớp, login ID hoặc mật khẩu",
+        description: "Sai login ID hoặc mật khẩu",
         variant: "destructive",
       });
       return;
@@ -200,21 +212,6 @@ function LoginCard() {
           {(["student", "parent"] as const).map((r) => (
             <TabsContent key={r} value={r}>
               <form className="mt-4 space-y-4" onSubmit={handleUser}>
-                <div>
-                  <Label htmlFor={`${r}-tenant`}>Mã lớp/Trung tâm</Label>
-                  <Input
-                    id={`${r}-tenant`}
-                    type="number"
-                    inputMode="numeric"
-                    placeholder="vd: 1"
-                    value={tenantId}
-                    onChange={(e) => setTenantId(e.target.value)}
-                    required
-                  />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Hỏi giáo viên để biết mã lớp.
-                  </p>
-                </div>
                 <div>
                   <Label htmlFor={`${r}-login`}>Login ID</Label>
                   <Input

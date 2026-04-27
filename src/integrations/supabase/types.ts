@@ -750,6 +750,7 @@ export type Database = {
           graded_at: string | null
           graded_by: string | null
           id: number
+          returned_at: string | null
           score: number | null
           status: Database["public"]["Enums"]["submission_status"]
           student_id: number
@@ -765,6 +766,7 @@ export type Database = {
           graded_at?: string | null
           graded_by?: string | null
           id?: number
+          returned_at?: string | null
           score?: number | null
           status?: Database["public"]["Enums"]["submission_status"]
           student_id: number
@@ -780,6 +782,7 @@ export type Database = {
           graded_at?: string | null
           graded_by?: string | null
           id?: number
+          returned_at?: string | null
           score?: number | null
           status?: Database["public"]["Enums"]["submission_status"]
           student_id?: number
