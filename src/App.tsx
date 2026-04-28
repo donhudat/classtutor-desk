@@ -21,6 +21,8 @@ import NotFound from "@/pages/NotFound";
 import MyClassesPage from "@/pages/student/MyClasses";
 import MyAssignmentsPage from "@/pages/student/MyAssignments";
 import MyChildrenPage from "@/pages/parent/MyChildren";
+import PaymentsPage from "@/pages/Payments";
+import MyPaymentsPage from "@/pages/parent/MyPayments";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
@@ -115,7 +117,14 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route path="/payments" element={<ComingSoon title="Học phí" />} />
+              <Route
+                path="/payments"
+                element={
+                  <ProtectedRoute allow={["teacher"]}>
+                    <PaymentsPage />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="/settings" element={<ComingSoon title="Cài đặt" />} />
               <Route
                 path="/my-classes"
@@ -141,7 +150,14 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route path="/my-payments" element={<ComingSoon title="Học phí" />} />
+              <Route
+                path="/my-payments"
+                element={
+                  <ProtectedRoute allow={["parent"]}>
+                    <MyPaymentsPage />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
             <Route path="/onboarding" element={<Navigate to="/auth" replace />} />
             <Route path="*" element={<NotFound />} />
