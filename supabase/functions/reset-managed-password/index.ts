@@ -52,17 +52,17 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: `Bearer ${jwt}` } },
+      global: { headers: { Authorization: authHeader } },
       auth: { persistSession: false },
     });
-    const { data: userRes, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userRes.user) {
+    const { data: claimsRes, error: claimsErr } = await userClient.auth.getClaims(jwt);
+    const callerId = claimsRes?.claims?.sub;
+    if (claimsErr || !callerId) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const callerId = userRes.user.id;
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
       auth: { persistSession: false },
