@@ -903,6 +903,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      compute_tuition_for_class_month: {
+        Args: { _class_id: number; _month: string }
+        Returns: number
+      }
+      compute_tuition_for_tenant_month: {
+        Args: { _month: string }
+        Returns: number
+      }
       current_tenant_id: { Args: never; Returns: number }
       has_role: {
         Args: {
