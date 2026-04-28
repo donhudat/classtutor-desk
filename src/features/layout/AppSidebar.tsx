@@ -112,8 +112,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {isTeacher && (
-          <SidebarGroup>
+        <SidebarGroup>
             {!collapsed && <SidebarGroupLabel>Hệ thống</SidebarGroupLabel>}
             <SidebarGroupContent>
               <SidebarMenu>
@@ -131,8 +130,7 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">
