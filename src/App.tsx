@@ -23,6 +23,7 @@ import MyAssignmentsPage from "@/pages/student/MyAssignments";
 import MyChildrenPage from "@/pages/parent/MyChildren";
 import PaymentsPage from "@/pages/Payments";
 import MyPaymentsPage from "@/pages/parent/MyPayments";
+import SettingsPage from "@/pages/Settings";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
@@ -125,7 +126,7 @@ const App = () => (
                   </ProtectedRoute>
                 }
               />
-              <Route path="/settings" element={<ComingSoon title="Cài đặt" />} />
+              <Route path="/settings" element={<SettingsPage />} />
               <Route
                 path="/my-classes"
                 element={
