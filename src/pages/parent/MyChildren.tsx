@@ -136,7 +136,7 @@ export default function MyChildrenPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("assignments")
-        .select("id, class_id, title, description, max_score, deadline, attachments, classes(name)")
+        .select("id, class_id, session_id, title, description, max_score, deadline, attachments, classes(name, subject), class_sessions:session_id(starts_at, ends_at)")
         .in("class_id", classIds)
         .is("deleted_at", null)
         .order("deadline", { ascending: false, nullsFirst: false });
@@ -173,7 +173,7 @@ export default function MyChildrenPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("feedbacks")
-        .select("id, content, created_at, session_id, class_sessions(starts_at, classes(name))")
+        .select("id, content, created_at, session_id, class_sessions(starts_at, ends_at, classes(name, subject))")
         .eq("student_id", selectedId!)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -188,7 +188,7 @@ export default function MyChildrenPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("attendances")
-        .select("id, status, note, checked_in_at, class_sessions(starts_at, classes(name))")
+        .select("id, status, note, checked_in_at, class_sessions(starts_at, ends_at, classes(name, subject))")
         .eq("student_id", selectedId!)
         .order("id", { ascending: false })
         .limit(50);
