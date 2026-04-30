@@ -32,6 +32,20 @@ const ATT_LABEL: Record<string, { label: string; variant: "default" | "secondary
   absent_excused: { label: "Vắng có phép", variant: "outline" },
 };
 
+const WEEKDAYS = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
+
+function formatSessionRange(starts_at?: string, ends_at?: string) {
+  if (!starts_at) return "—";
+  const s = new Date(starts_at);
+  const wd = WEEKDAYS[s.getDay()];
+  const date = s.toLocaleDateString("vi-VN");
+  const sh = s.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  if (!ends_at) return `${wd}, ${date} • ${sh}`;
+  const e = new Date(ends_at);
+  const eh = e.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  return `${wd}, ${date} • ${sh} → ${eh}`;
+}
+
 export default function MyChildrenPage() {
   const { user } = useAuth();
   const [childId, setChildId] = useState<string>("");
