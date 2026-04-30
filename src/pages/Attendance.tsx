@@ -28,6 +28,8 @@ type Row = {
   status: Status | null;
   note: string;
   attendanceId?: number;
+  feedback: string;
+  feedbackId?: number;
 };
 
 export default function AttendancePage() {
@@ -82,10 +84,19 @@ export default function AttendancePage() {
       const attMap = new Map<number, { id: number; status: Status; note: string | null }>();
       (atts ?? []).forEach((a) => attMap.set(a.student_id, a as any));
 
+      const { data: fbs, error: fErr } = await supabase
+        .from("feedbacks")
+        .select("id, student_id, content")
+        .eq("session_id", sid);
+      if (fErr) throw fErr;
+      const fbMap = new Map<number, { id: number; content: string }>();
+      (fbs ?? []).forEach((f: any) => fbMap.set(f.student_id, f));
+
       const result: Row[] = filtered
         .map((e: any) => {
           const prof = e.students?.profiles;
           const att = attMap.get(e.student_id);
+          const fb = fbMap.get(e.student_id);
           return {
             student_id: e.student_id,
             full_name: prof?.full_name ?? "—",
@@ -93,6 +104,8 @@ export default function AttendancePage() {
             status: att?.status ?? null,
             note: att?.note ?? "",
             attendanceId: att?.id,
+            feedback: fb?.content ?? "",
+            feedbackId: fb?.id,
           };
         })
         .sort((a, b) => a.full_name.localeCompare(b.full_name, "vi"));
@@ -108,6 +121,8 @@ export default function AttendancePage() {
     setRows((cur) => cur.map((r) => (r.student_id === sid ? { ...r, status } : r)));
   const setNote = (sid: number, note: string) =>
     setRows((cur) => cur.map((r) => (r.student_id === sid ? { ...r, note } : r)));
+  const setFeedback = (sid: number, feedback: string) =>
+    setRows((cur) => cur.map((r) => (r.student_id === sid ? { ...r, feedback } : r)));
   const markAll = (status: Status) =>
     setRows((cur) => cur.map((r) => ({ ...r, status })));
 
@@ -147,13 +162,41 @@ export default function AttendancePage() {
       toast({ title: "Lỗi", description: error.message, variant: "destructive" });
       return;
     }
+
+    // Lưu nhận xét: upsert nếu có nội dung, xoá nếu để trống nhưng từng có
+    const fbToUpsert = rows
+      .filter((r) => r.feedback.trim().length > 0)
+      .map((r) => ({
+        tenant_id: profile.tenant_id,
+        session_id: sid,
+        student_id: r.student_id,
+        content: r.feedback.trim(),
+        created_by: profile.id,
+      }));
+    if (fbToUpsert.length > 0) {
+      const { error: fErr } = await supabase
+        .from("feedbacks")
+        .upsert(fbToUpsert, { onConflict: "session_id,student_id" });
+      if (fErr) {
+        setSaving(false);
+        toast({ title: "Lỗi lưu nhận xét", description: fErr.message, variant: "destructive" });
+        return;
+      }
+    }
+    const fbToDelete = rows
+      .filter((r) => r.feedbackId && r.feedback.trim().length === 0)
+      .map((r) => r.feedbackId!) as number[];
+    if (fbToDelete.length > 0) {
+      await supabase.from("feedbacks").delete().in("id", fbToDelete);
+    }
+
     // mark session
     await supabase
       .from("class_sessions")
       .update({ attendance_taken_at: new Date().toISOString(), status: "completed" })
       .eq("id", sid);
     setSaving(false);
-    toast({ title: "Đã lưu điểm danh" });
+    toast({ title: "Đã lưu điểm danh & nhận xét" });
     qc.invalidateQueries({ queryKey: ["attendance-data", sid] });
     qc.invalidateQueries({ queryKey: ["session", sid] });
     qc.invalidateQueries({ queryKey: ["sessions"] });
@@ -218,34 +261,43 @@ export default function AttendancePage() {
       <div className="space-y-2">
         {rows.map((r) => (
           <Card key={r.student_id} className="border-border/80">
-            <CardContent className="flex flex-wrap items-center gap-3 px-4 py-3">
-              <div className="min-w-[180px] flex-1">
-                <div className="font-medium">{r.full_name}</div>
-                <div className="text-xs text-muted-foreground">@{r.login_id}</div>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {STATUS_BUTTONS.map((b) => {
-                  const active = r.status === b.v;
-                  return (
-                    <button
-                      key={b.v}
-                      type="button"
-                      onClick={() => setStatus(r.student_id, b.v)}
-                      className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-                        active ? b.cls : "border-border bg-background hover:bg-muted"
-                      }`}
-                    >
-                      {b.label}
-                    </button>
-                  );
-                })}
+            <CardContent className="space-y-2 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="min-w-[180px] flex-1">
+                  <div className="font-medium">{r.full_name}</div>
+                  <div className="text-xs text-muted-foreground">@{r.login_id}</div>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {STATUS_BUTTONS.map((b) => {
+                    const active = r.status === b.v;
+                    return (
+                      <button
+                        key={b.v}
+                        type="button"
+                        onClick={() => setStatus(r.student_id, b.v)}
+                        className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+                          active ? b.cls : "border-border bg-background hover:bg-muted"
+                        }`}
+                      >
+                        {b.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <Textarea
+                  value={r.note}
+                  onChange={(e) => setNote(r.student_id, e.target.value)}
+                  placeholder="Ghi chú điểm danh"
+                  rows={1}
+                  className="w-full md:w-[220px]"
+                />
               </div>
               <Textarea
-                value={r.note}
-                onChange={(e) => setNote(r.student_id, e.target.value)}
-                placeholder="Ghi chú (tuỳ chọn)"
-                rows={1}
-                className="w-full md:w-[220px]"
+                value={r.feedback}
+                onChange={(e) => setFeedback(r.student_id, e.target.value)}
+                placeholder="Nhận xét buổi học (chỉ phụ huynh xem được, học sinh không thấy)"
+                rows={2}
+                className="w-full"
               />
             </CardContent>
           </Card>
