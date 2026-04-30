@@ -7,6 +7,9 @@ import {
   CalendarDays,
   BookOpen,
   Clock,
+  CheckCircle2,
+  Wallet,
+  TrendingUp,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/features/layout/PageHeader";
@@ -14,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth, useRole } from "@/features/auth/AuthProvider";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatVND } from "@/lib/format";
 
 function StatCard({
   icon: Icon,
@@ -63,6 +66,102 @@ export default function Dashboard() {
     },
   });
 
+  const monthly = useQuery({
+    enabled: isTeacher,
+    queryKey: ["dashboard-monthly"],
+    queryFn: async () => {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const monthStartIso = monthStart.toISOString();
+      const monthEndIso = monthEnd.toISOString();
+      const nowIso = now.toISOString();
+
+      // All sessions of the month (not cancelled)
+      const { data: sessions } = await supabase
+        .from("class_sessions")
+        .select("id, class_id, starts_at, ends_at, status")
+        .is("deleted_at", null)
+        .neq("status", "cancelled")
+        .gte("starts_at", monthStartIso)
+        .lt("starts_at", monthEndIso)
+        .limit(2000);
+
+      const allSessions = sessions ?? [];
+      const distinctClasses = new Set(allSessions.map((s: any) => s.class_id));
+      const sessionIds = allSessions.map((s: any) => s.id);
+
+      // Sessions that have at least 1 attendance record => counted as taught
+      let taughtSessionIds = new Set<number>();
+      if (sessionIds.length) {
+        const { data: atts } = await supabase
+          .from("attendances")
+          .select("session_id")
+          .in("session_id", sessionIds)
+          .limit(5000);
+        (atts ?? []).forEach((a: any) => taughtSessionIds.add(a.session_id));
+      }
+
+      // Estimated tuition: every (non-cancelled) session in month * sum(price_per_session) of active enrollments per class
+      // Earned-to-date tuition: only sessions already taught (has attendance) up to now, count attended/late students * price
+      const classIds = Array.from(distinctClasses);
+      let enrollmentsByClass = new Map<number, { student_id: number; price: number }[]>();
+      if (classIds.length) {
+        const { data: enrolls } = await supabase
+          .from("class_enrollments")
+          .select("class_id, student_id, price_per_session, start_date, end_date")
+          .in("class_id", classIds)
+          .is("deleted_at", null)
+          .limit(5000);
+        (enrolls ?? []).forEach((e: any) => {
+          const arr = enrollmentsByClass.get(e.class_id) ?? [];
+          arr.push({ student_id: e.student_id, price: Number(e.price_per_session) || 0 });
+          enrollmentsByClass.set(e.class_id, arr);
+        });
+      }
+
+      let estimated = 0;
+      let taughtCount = 0;
+      for (const s of allSessions) {
+        const enrolls = enrollmentsByClass.get(s.class_id) ?? [];
+        const sumPrice = enrolls.reduce((acc, e) => acc + e.price, 0);
+        estimated += sumPrice;
+        if (taughtSessionIds.has(s.id)) taughtCount += 1;
+      }
+
+      // Earned tuition to date: sum of (attended + late) * price across attendances of this month
+      let earned = 0;
+      if (sessionIds.length) {
+        const { data: paidAtts } = await supabase
+          .from("attendances")
+          .select("session_id, student_id, status")
+          .in("session_id", sessionIds)
+          .in("status", ["attended", "late"])
+          .limit(10000);
+        // Build price map per (class_id, student_id)
+        const priceMap = new Map<string, number>();
+        enrollmentsByClass.forEach((list, classId) => {
+          list.forEach((e) => priceMap.set(`${classId}:${e.student_id}`, e.price));
+        });
+        const sessionClass = new Map<number, number>();
+        allSessions.forEach((s: any) => sessionClass.set(s.id, s.class_id));
+        (paidAtts ?? []).forEach((a: any) => {
+          const cid = sessionClass.get(a.session_id);
+          const p = priceMap.get(`${cid}:${a.student_id}`) ?? 0;
+          earned += p;
+        });
+      }
+
+      return {
+        plannedClasses: distinctClasses.size,
+        plannedSessions: allSessions.length,
+        taughtSessions: taughtCount,
+        estimatedTuition: estimated,
+        earnedTuition: earned,
+      };
+    },
+  });
+
   const upcoming = useQuery({
     enabled: isStudent || isParent,
     queryKey: ["dashboard-upcoming"],
@@ -106,11 +205,50 @@ export default function Dashboard() {
       />
 
       {isTeacher ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard icon={GraduationCap} label="Lớp đang hoạt động" value={stats.data?.classes ?? 0} loading={stats.isLoading} />
-          <StatCard icon={Users} label="Học sinh" value={stats.data?.students ?? 0} loading={stats.isLoading} />
-          <StatCard icon={UserSquare2} label="Phụ huynh" value={stats.data?.parents ?? 0} loading={stats.isLoading} />
-          <StatCard icon={CalendarDays} label="Buổi học tuần này" value="—" />
+        <div className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard icon={GraduationCap} label="Lớp đang hoạt động" value={stats.data?.classes ?? 0} loading={stats.isLoading} />
+            <StatCard icon={Users} label="Học sinh" value={stats.data?.students ?? 0} loading={stats.isLoading} />
+            <StatCard icon={UserSquare2} label="Phụ huynh" value={stats.data?.parents ?? 0} loading={stats.isLoading} />
+            <StatCard
+              icon={CalendarDays}
+              label="Lớp dự kiến trong tháng"
+              value={monthly.data?.plannedClasses ?? 0}
+              loading={monthly.isLoading}
+            />
+          </div>
+
+          <div>
+            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
+              Thống kê tháng {new Date().getMonth() + 1}/{new Date().getFullYear()}
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard
+                icon={CalendarDays}
+                label="Buổi dự kiến"
+                value={monthly.data?.plannedSessions ?? 0}
+                loading={monthly.isLoading}
+              />
+              <StatCard
+                icon={CheckCircle2}
+                label="Buổi đã dạy"
+                value={`${monthly.data?.taughtSessions ?? 0} / ${monthly.data?.plannedSessions ?? 0}`}
+                loading={monthly.isLoading}
+              />
+              <StatCard
+                icon={TrendingUp}
+                label="Học phí ước tính (cả tháng)"
+                value={formatVND(monthly.data?.estimatedTuition ?? 0)}
+                loading={monthly.isLoading}
+              />
+              <StatCard
+                icon={Wallet}
+                label="Học phí tới hiện tại"
+                value={formatVND(monthly.data?.earnedTuition ?? 0)}
+                loading={monthly.isLoading}
+              />
+            </div>
+          </div>
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
