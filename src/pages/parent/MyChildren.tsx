@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { FileList } from "@/components/FileList";
 import type { StoredFile } from "@/lib/storage";
@@ -31,6 +31,20 @@ const ATT_LABEL: Record<string, { label: string; variant: "default" | "secondary
   absent: { label: "Vắng", variant: "destructive" },
   absent_excused: { label: "Vắng có phép", variant: "outline" },
 };
+
+const WEEKDAYS = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
+
+function formatSessionRange(starts_at?: string, ends_at?: string) {
+  if (!starts_at) return "—";
+  const s = new Date(starts_at);
+  const wd = WEEKDAYS[s.getDay()];
+  const date = s.toLocaleDateString("vi-VN");
+  const sh = s.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  if (!ends_at) return `${wd}, ${date} • ${sh}`;
+  const e = new Date(ends_at);
+  const eh = e.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  return `${wd}, ${date} • ${sh} → ${eh}`;
+}
 
 export default function MyChildrenPage() {
   const { user } = useAuth();
@@ -122,7 +136,7 @@ export default function MyChildrenPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("assignments")
-        .select("id, class_id, title, description, max_score, deadline, attachments, classes(name)")
+        .select("id, class_id, session_id, title, description, max_score, deadline, attachments, classes(name, subject), class_sessions:session_id(starts_at, ends_at)")
         .in("class_id", classIds)
         .is("deleted_at", null)
         .order("deadline", { ascending: false, nullsFirst: false });
@@ -159,7 +173,7 @@ export default function MyChildrenPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("feedbacks")
-        .select("id, content, created_at, session_id, class_sessions(starts_at, classes(name))")
+        .select("id, content, created_at, session_id, class_sessions(starts_at, ends_at, classes(name, subject))")
         .eq("student_id", selectedId!)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -174,7 +188,7 @@ export default function MyChildrenPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("attendances")
-        .select("id, status, note, checked_in_at, class_sessions(starts_at, classes(name))")
+        .select("id, status, note, checked_in_at, class_sessions(starts_at, ends_at, classes(name, subject))")
         .eq("student_id", selectedId!)
         .order("id", { ascending: false })
         .limit(50);
@@ -276,20 +290,28 @@ export default function MyChildrenPage() {
                     const cls = (enrollQ.data ?? []).find(
                       (e: any) => e.class_id === s.class_id,
                     )?.classes;
-                    const ends = new Date(s.ends_at);
                     return (
                       <Card key={s.id} className="border-border/80">
-                        <CardContent className="flex items-center gap-3 px-4 py-3">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
+                        <CardContent className="flex items-start gap-3 px-4 py-3">
+                          <Clock className="mt-0.5 h-4 w-4 text-muted-foreground" />
                           <div className="min-w-0 flex-1">
-                            <div className="font-medium">{cls?.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {formatDateTime(s.starts_at)} →{" "}
-                              {ends.toLocaleTimeString("vi-VN", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium">{cls?.name ?? "—"}</span>
+                              {cls?.subject && (
+                                <Badge variant="secondary">{cls.subject}</Badge>
+                              )}
+                              {cls?.grade_level && (
+                                <Badge variant="outline">Lớp {cls.grade_level}</Badge>
+                              )}
                             </div>
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {formatSessionRange(s.starts_at, s.ends_at)}
+                            </div>
+                            {s.note && (
+                              <div className="mt-1 text-xs text-muted-foreground">
+                                Ghi chú: {s.note}
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -311,6 +333,9 @@ export default function MyChildrenPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-display">{a.title}</span>
                         <Badge variant="secondary">{a.classes?.name}</Badge>
+                        {a.classes?.subject && (
+                          <Badge variant="outline">{a.classes.subject}</Badge>
+                        )}
                         {a.deadline && (
                           <Badge variant="outline">
                             Hạn: {formatDateTime(a.deadline)}
@@ -339,6 +364,12 @@ export default function MyChildrenPage() {
                           </Badge>
                         )}
                       </div>
+                      {a.class_sessions?.starts_at && (
+                        <div className="text-xs text-muted-foreground">
+                          <Clock className="mr-1 inline h-3 w-3" />
+                          Buổi học: {formatSessionRange(a.class_sessions.starts_at, a.class_sessions.ends_at)}
+                        </div>
+                      )}
                       {a.description && (
                         <p className="line-clamp-2 text-sm text-muted-foreground">
                           {a.description}
@@ -371,18 +402,27 @@ export default function MyChildrenPage() {
               )}
               {(attendanceQ.data ?? []).map((a: any) => {
                 const meta = ATT_LABEL[a.status] ?? { label: a.status, variant: "outline" as const };
+                const cls = a.class_sessions?.classes;
                 return (
                   <Card key={a.id} className="border-border/80">
-                    <CardContent className="flex flex-wrap items-center gap-3 px-4 py-3">
+                    <CardContent className="flex flex-wrap items-start gap-3 px-4 py-3">
                       <Badge variant={meta.variant}>{meta.label}</Badge>
                       <div className="min-w-0 flex-1">
-                        <div className="font-medium">
-                          {a.class_sessions?.classes?.name ?? "—"}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{cls?.name ?? "—"}</span>
+                          {cls?.subject && (
+                            <Badge variant="secondary">{cls.subject}</Badge>
+                          )}
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatDate(a.class_sessions?.starts_at)}
-                          {a.note && ` • ${a.note}`}
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          <Clock className="mr-1 inline h-3 w-3" />
+                          {formatSessionRange(a.class_sessions?.starts_at, a.class_sessions?.ends_at)}
                         </div>
+                        {a.note && (
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            Ghi chú: {a.note}
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -394,19 +434,31 @@ export default function MyChildrenPage() {
               {(feedbacksQ.data ?? []).length === 0 && !feedbacksQ.isLoading && (
                 <p className="text-sm text-muted-foreground">Chưa có nhận xét nào.</p>
               )}
-              {(feedbacksQ.data ?? []).map((f: any) => (
-                <Card key={f.id} className="border-border/80">
-                  <CardContent className="space-y-1 py-3">
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <Badge variant="outline">
-                        {f.class_sessions?.classes?.name ?? "—"}
-                      </Badge>
-                      <span>{formatDate(f.class_sessions?.starts_at)}</span>
-                    </div>
-                    <p className="whitespace-pre-wrap text-sm">{f.content}</p>
-                  </CardContent>
-                </Card>
-              ))}
+              {(feedbacksQ.data ?? []).map((f: any) => {
+                const cls = f.class_sessions?.classes;
+                return (
+                  <Card key={f.id} className="border-border/80">
+                    <CardContent className="space-y-2 py-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{cls?.name ?? "—"}</span>
+                        {cls?.subject && (
+                          <Badge variant="secondary">{cls.subject}</Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        <Clock className="mr-1 inline h-3 w-3" />
+                        Buổi học: {formatSessionRange(f.class_sessions?.starts_at, f.class_sessions?.ends_at)}
+                      </div>
+                      <p className="whitespace-pre-wrap rounded-md border border-primary/30 bg-primary/5 p-2 text-sm">
+                        {f.content}
+                      </p>
+                      <div className="text-[10px] text-muted-foreground">
+                        Giáo viên gửi {formatDateTime(f.created_at)}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </TabsContent>
           </Tabs>
         </>
