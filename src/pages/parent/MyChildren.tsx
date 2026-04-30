@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { FileList } from "@/components/FileList";
 import type { StoredFile } from "@/lib/storage";
