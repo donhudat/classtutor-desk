@@ -296,43 +296,34 @@ export default function MyChildrenPage() {
                 </div>
               </div>
               <div>
-                <h3 className="mb-2 font-display text-base">Buổi học sắp tới</h3>
-                {(sessionsQ.data ?? []).length === 0 && !sessionsQ.isLoading && (
-                  <p className="text-sm text-muted-foreground">Chưa có buổi sắp tới.</p>
-                )}
-                <div className="space-y-2">
-                  {(sessionsQ.data ?? []).map((s: any) => {
+                <h3 className="mb-2 font-display text-base">Lịch học theo tháng</h3>
+                <MonthCalendar
+                  month={month}
+                  onMonthChange={setMonth}
+                  sessions={((sessionsQ.data ?? []) as any[]).map((s) => {
                     const cls = (enrollQ.data ?? []).find(
                       (e: any) => e.class_id === s.class_id,
                     )?.classes;
-                    return (
-                      <Card key={s.id} className="border-border/80">
-                        <CardContent className="flex items-start gap-3 px-4 py-3">
-                          <Clock className="mt-0.5 h-4 w-4 text-muted-foreground" />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-medium">{cls?.name ?? "—"}</span>
-                              {cls?.subject && (
-                                <Badge variant="secondary">{cls.subject}</Badge>
-                              )}
-                              {cls?.grade_level && (
-                                <Badge variant="outline">Lớp {cls.grade_level}</Badge>
-                              )}
-                            </div>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              {formatSessionRange(s.starts_at, s.ends_at)}
-                            </div>
-                            {s.note && (
-                              <div className="mt-1 text-xs text-muted-foreground">
-                                Ghi chú: {s.note}
-                              </div>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
+                    return {
+                      id: s.id,
+                      class_id: s.class_id,
+                      starts_at: s.starts_at,
+                      ends_at: s.ends_at,
+                      status: s.status,
+                      className: cls?.name,
+                      subject: cls?.subject ?? null,
+                    } as CalendarSession;
                   })}
-                </div>
+                  onSessionClick={(s) => {
+                    const full = (sessionsQ.data ?? []).find((x: any) => x.id === s.id);
+                    if (full) {
+                      const cls = (enrollQ.data ?? []).find(
+                        (e: any) => e.class_id === full.class_id,
+                      )?.classes;
+                      setSessionDetail({ ...full, _class: cls });
+                    }
+                  }}
+                />
               </div>
             </TabsContent>
 
