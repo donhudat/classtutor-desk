@@ -469,6 +469,33 @@ export default function MyChildrenPage() {
           </Tabs>
         </>
       )}
+
+      <Dialog open={!!sessionDetail} onOpenChange={(v) => !v && setSessionDetail(null)}>
+        <DialogContent>
+          {sessionDetail && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{sessionDetail._class?.name ?? `Lớp #${sessionDetail.class_id}`}</DialogTitle>
+                <DialogDescription className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  {formatSessionRange(sessionDetail.starts_at, sessionDetail.ends_at)}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-wrap gap-2">
+                {sessionDetail._class?.subject && (
+                  <Badge variant="secondary">{sessionDetail._class.subject}</Badge>
+                )}
+                {sessionDetail._class?.grade_level && (
+                  <Badge variant="outline">Lớp {sessionDetail._class.grade_level}</Badge>
+                )}
+              </div>
+              {sessionDetail.note && (
+                <p className="text-sm text-muted-foreground">Ghi chú: {sessionDetail.note}</p>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
