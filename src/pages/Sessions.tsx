@@ -1,12 +1,22 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Wand2, ClipboardCheck } from "lucide-react";
+import { Plus, Pencil, Trash2, Wand2, ClipboardCheck, CalendarDays, List } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/features/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MonthCalendar, type CalendarSession } from "@/features/sessions/MonthCalendar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -68,6 +78,11 @@ export default function SessionsPage() {
   const [open, setOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
   const [editing, setEditing] = useState<SessionEditing | null>(null);
+  const [month, setMonth] = useState<Date>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [detail, setDetail] = useState<SessionRow | null>(null);
 
   const classesQ = useQuery({
     queryKey: ["classes-min"],
@@ -83,14 +98,18 @@ export default function SessionsPage() {
   });
 
   const sessionsQ = useQuery({
-    queryKey: ["sessions", classFilter],
+    queryKey: ["sessions", classFilter, month.toISOString()],
     queryFn: async () => {
+      const start = new Date(month.getFullYear(), month.getMonth() - 1, 1).toISOString();
+      const end = new Date(month.getFullYear(), month.getMonth() + 2, 1).toISOString();
       let q = supabase
         .from("class_sessions")
         .select("id, class_id, starts_at, ends_at, status, note, attendance_taken_at")
         .is("deleted_at", null)
+        .gte("starts_at", start)
+        .lt("starts_at", end)
         .order("starts_at", { ascending: false })
-        .limit(200);
+        .limit(500);
       if (classFilter !== "all") q = q.eq("class_id", Number(classFilter));
       const { data, error } = await q;
       if (error) throw error;
@@ -119,6 +138,19 @@ export default function SessionsPage() {
 
   const list = sessionsQ.data ?? [];
   const classes = classesQ.data ?? [];
+
+  const calSessions: CalendarSession[] = list.map((s) => {
+    const c = classMap.get(s.class_id);
+    return {
+      id: s.id,
+      class_id: s.class_id,
+      starts_at: s.starts_at,
+      ends_at: s.ends_at,
+      status: s.status,
+      className: c?.name,
+      subject: c?.subject ?? null,
+    };
+  });
 
   return (
     <div>
@@ -171,18 +203,44 @@ export default function SessionsPage() {
         </Card>
       )}
 
-      {classes.length > 0 && list.length === 0 && !sessionsQ.isLoading && (
-        <Card className="border-dashed border-border/80 bg-card/40">
-          <CardContent className="py-12 text-center">
-            <p className="font-display text-xl">Chưa có buổi học nào</p>
-            <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-              Bấm "Sinh từ lịch" để tự động tạo theo lịch cố định trong tuần.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {classes.length > 0 && (
+        <Tabs defaultValue="calendar">
+          <TabsList className="mb-3">
+            <TabsTrigger value="calendar">
+              <CalendarDays className="mr-1 h-4 w-4" /> Lịch tháng
+            </TabsTrigger>
+            <TabsTrigger value="list">
+              <List className="mr-1 h-4 w-4" /> Danh sách
+            </TabsTrigger>
+          </TabsList>
 
-      <div className="space-y-2">
+          <TabsContent value="calendar">
+            <MonthCalendar
+              month={month}
+              onMonthChange={setMonth}
+              sessions={calSessions}
+              onSessionClick={(s) => {
+                const full = list.find((x) => x.id === s.id);
+                if (full) setDetail(full);
+              }}
+              colorFor={(s) =>
+                s.status === "completed" ? "secondary" : s.status === "cancelled" ? "muted" : "primary"
+              }
+            />
+          </TabsContent>
+
+          <TabsContent value="list">
+            {list.length === 0 && !sessionsQ.isLoading && (
+              <Card className="border-dashed border-border/80 bg-card/40">
+                <CardContent className="py-12 text-center">
+                  <p className="font-display text-xl">Chưa có buổi học nào</p>
+                  <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
+                    Bấm "Sinh từ lịch" để tự động tạo theo lịch cố định trong tuần.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            <div className="space-y-2">
         {list.map((s) => (
           <Card key={s.id} className="border-border/80">
             <CardContent className="flex flex-wrap items-center gap-3 px-4 py-3">
@@ -261,7 +319,56 @@ export default function SessionsPage() {
             </CardContent>
           </Card>
         ))}
-      </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      )}
+
+      {/* Detail dialog (from calendar click) */}
+      <Dialog open={!!detail} onOpenChange={(v) => !v && setDetail(null)}>
+        <DialogContent>
+          {detail && (() => {
+            const cls = classMap.get(detail.class_id);
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>{cls?.name ?? `Lớp #${detail.class_id}`}</DialogTitle>
+                  <DialogDescription>
+                    {formatDateTime(detail.starts_at)} → {formatDateTime(detail.ends_at).split(" ")[0]}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-wrap gap-2">
+                  {cls?.subject && <Badge variant="secondary">{cls.subject}</Badge>}
+                  {cls?.grade_level && <Badge variant="outline">Lớp {cls.grade_level}</Badge>}
+                  <Badge variant={STATUS_VARIANT[detail.status]}>{STATUS_LABEL[detail.status]}</Badge>
+                  {detail.attendance_taken_at && (
+                    <Badge variant="outline" className="border-primary/40 text-primary">Đã điểm danh</Badge>
+                  )}
+                </div>
+                {detail.note && (
+                  <p className="text-sm text-muted-foreground">{detail.note}</p>
+                )}
+                <DialogFooter className="gap-2 sm:gap-2">
+                  <Button asChild variant="outline">
+                    <Link to={`/attendance/${detail.id}`}>
+                      <ClipboardCheck className="mr-1 h-4 w-4" /> Điểm danh
+                    </Link>
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setEditing(detail);
+                      setDetail(null);
+                      setOpen(true);
+                    }}
+                  >
+                    <Pencil className="mr-1 h-4 w-4" /> Sửa
+                  </Button>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       <SessionFormDialog
         open={open}
