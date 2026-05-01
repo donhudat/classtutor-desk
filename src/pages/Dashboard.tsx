@@ -18,6 +18,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth, useRole } from "@/features/auth/AuthProvider";
 import { formatDateTime, formatVND } from "@/lib/format";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 function StatCard({
   icon: Icon,
@@ -131,6 +146,7 @@ export default function Dashboard() {
 
       // Earned tuition to date: sum of (attended + late) * price across attendances of this month
       let earned = 0;
+      const earnedBySession = new Map<number, number>();
       if (sessionIds.length) {
         const { data: paidAtts } = await supabase
           .from("attendances")
@@ -149,8 +165,50 @@ export default function Dashboard() {
           const cid = sessionClass.get(a.session_id);
           const p = priceMap.get(`${cid}:${a.student_id}`) ?? 0;
           earned += p;
+          earnedBySession.set(a.session_id, (earnedBySession.get(a.session_id) ?? 0) + p);
         });
       }
+
+      // Build weekly cumulative trend (split month into weeks by ISO-ish: week 1 = days 1-7, etc.)
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const weekBoundaries: { label: string; endDay: number }[] = [];
+      for (let start = 1; start <= lastDay; start += 7) {
+        const end = Math.min(start + 6, lastDay);
+        weekBoundaries.push({ label: `Tuần ${weekBoundaries.length + 1} (${start}-${end})`, endDay: end });
+      }
+      const todayDay = now.getDate();
+      let cumEst = 0;
+      let cumEarned = 0;
+      const weekly = weekBoundaries.map((wb) => {
+        for (const s of allSessions) {
+          const d = new Date(s.starts_at).getDate();
+          if (d > wb.endDay) continue;
+          // only count if not already counted in previous weeks: sessions are accumulated linearly,
+          // so add those whose day falls in this week range (between previous endDay+1 and endDay)
+        }
+        // Recompute using ranges to keep it simple
+        return wb;
+      });
+      // Proper cumulative computation
+      const weeklyData = weekBoundaries.map((wb) => {
+        let estUpTo = 0;
+        let earnedUpTo = 0;
+        for (const s of allSessions) {
+          const d = new Date(s.starts_at).getDate();
+          if (d <= wb.endDay) {
+            const enrolls = enrollmentsByClass.get(s.class_id) ?? [];
+            estUpTo += enrolls.reduce((acc, e) => acc + e.price, 0);
+            if (d <= todayDay) {
+              earnedUpTo += earnedBySession.get(s.id) ?? 0;
+            }
+          }
+        }
+        return {
+          week: wb.label,
+          estimated: estUpTo,
+          earned: earnedUpTo,
+        };
+      });
 
       return {
         plannedClasses: distinctClasses.size,
@@ -158,6 +216,7 @@ export default function Dashboard() {
         taughtSessions: taughtCount,
         estimatedTuition: estimated,
         earnedTuition: earned,
+        weekly: weeklyData,
       };
     },
   });
@@ -249,6 +308,74 @@ export default function Dashboard() {
               />
             </div>
           </div>
+
+          <Card className="border-border/80">
+            <CardHeader>
+              <CardTitle className="text-base">Xu hướng học phí theo tuần</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
+                config={{
+                  estimated: { label: "Ước tính (luỹ kế)", color: "hsl(var(--primary))" },
+                  earned: { label: "Đã đạt (luỹ kế)", color: "hsl(var(--accent-foreground))" },
+                } satisfies ChartConfig}
+                className="aspect-[16/6] w-full"
+              >
+                <AreaChart data={monthly.data?.weekly ?? []} margin={{ left: 8, right: 8, top: 8 }}>
+                  <defs>
+                    <linearGradient id="fillEstimated" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-estimated)" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="var(--color-estimated)" stopOpacity={0.05} />
+                    </linearGradient>
+                    <linearGradient id="fillEarned" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-earned)" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="var(--color-earned)" stopOpacity={0.05} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} fontSize={11} />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    fontSize={11}
+                    tickFormatter={(v) => (v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}tr` : `${(v / 1000).toFixed(0)}k`)}
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value, name) => (
+                          <div className="flex w-full items-center justify-between gap-3">
+                            <span className="text-muted-foreground">
+                              {name === "estimated" ? "Ước tính" : "Đã đạt"}
+                            </span>
+                            <span className="font-mono font-medium tabular-nums">
+                              {formatVND(Number(value))}
+                            </span>
+                          </div>
+                        )}
+                      />
+                    }
+                  />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <Area
+                    type="monotone"
+                    dataKey="estimated"
+                    stroke="var(--color-estimated)"
+                    fill="url(#fillEstimated)"
+                    strokeWidth={2}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="earned"
+                    stroke="var(--color-earned)"
+                    fill="url(#fillEarned)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
