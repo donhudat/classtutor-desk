@@ -17,6 +17,14 @@ import { formatDateTime } from "@/lib/format";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { FileList } from "@/components/FileList";
 import type { StoredFile } from "@/lib/storage";
+import { MonthCalendar, type CalendarSession } from "@/features/sessions/MonthCalendar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Child = {
   id: number;
@@ -49,6 +57,11 @@ function formatSessionRange(starts_at?: string, ends_at?: string) {
 export default function MyChildrenPage() {
   const { user } = useAuth();
   const [childId, setChildId] = useState<string>("");
+  const [month, setMonth] = useState<Date>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [sessionDetail, setSessionDetail] = useState<any | null>(null);
 
   const parentQ = useQuery({
     queryKey: ["my-parent-id", user?.id],
@@ -112,19 +125,21 @@ export default function MyChildrenPage() {
   );
 
   const sessionsQ = useQuery({
-    queryKey: ["child-sessions", selectedId, classIds],
+    queryKey: ["child-sessions", selectedId, classIds, month.toISOString()],
     enabled: !!selectedId && classIds.length > 0,
     queryFn: async () => {
-      const now = new Date().toISOString();
+      const start = new Date(month.getFullYear(), month.getMonth() - 1, 1).toISOString();
+      const end = new Date(month.getFullYear(), month.getMonth() + 2, 1).toISOString();
       const { data, error } = await supabase
         .from("class_sessions")
         .select("id, class_id, starts_at, ends_at, status, note")
         .in("class_id", classIds)
         .is("deleted_at", null)
-        .gte("ends_at", now)
+        .gte("starts_at", start)
+        .lt("starts_at", end)
         .neq("status", "cancelled")
         .order("starts_at", { ascending: true })
-        .limit(20);
+        .limit(500);
       if (error) throw error;
       return data ?? [];
     },
@@ -281,43 +296,34 @@ export default function MyChildrenPage() {
                 </div>
               </div>
               <div>
-                <h3 className="mb-2 font-display text-base">Buổi học sắp tới</h3>
-                {(sessionsQ.data ?? []).length === 0 && !sessionsQ.isLoading && (
-                  <p className="text-sm text-muted-foreground">Chưa có buổi sắp tới.</p>
-                )}
-                <div className="space-y-2">
-                  {(sessionsQ.data ?? []).map((s: any) => {
+                <h3 className="mb-2 font-display text-base">Lịch học theo tháng</h3>
+                <MonthCalendar
+                  month={month}
+                  onMonthChange={setMonth}
+                  sessions={((sessionsQ.data ?? []) as any[]).map((s) => {
                     const cls = (enrollQ.data ?? []).find(
                       (e: any) => e.class_id === s.class_id,
                     )?.classes;
-                    return (
-                      <Card key={s.id} className="border-border/80">
-                        <CardContent className="flex items-start gap-3 px-4 py-3">
-                          <Clock className="mt-0.5 h-4 w-4 text-muted-foreground" />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-medium">{cls?.name ?? "—"}</span>
-                              {cls?.subject && (
-                                <Badge variant="secondary">{cls.subject}</Badge>
-                              )}
-                              {cls?.grade_level && (
-                                <Badge variant="outline">Lớp {cls.grade_level}</Badge>
-                              )}
-                            </div>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              {formatSessionRange(s.starts_at, s.ends_at)}
-                            </div>
-                            {s.note && (
-                              <div className="mt-1 text-xs text-muted-foreground">
-                                Ghi chú: {s.note}
-                              </div>
-                            )}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
+                    return {
+                      id: s.id,
+                      class_id: s.class_id,
+                      starts_at: s.starts_at,
+                      ends_at: s.ends_at,
+                      status: s.status,
+                      className: cls?.name,
+                      subject: cls?.subject ?? null,
+                    } as CalendarSession;
                   })}
-                </div>
+                  onSessionClick={(s) => {
+                    const full = (sessionsQ.data ?? []).find((x: any) => x.id === s.id);
+                    if (full) {
+                      const cls = (enrollQ.data ?? []).find(
+                        (e: any) => e.class_id === full.class_id,
+                      )?.classes;
+                      setSessionDetail({ ...full, _class: cls });
+                    }
+                  }}
+                />
               </div>
             </TabsContent>
 
@@ -463,6 +469,33 @@ export default function MyChildrenPage() {
           </Tabs>
         </>
       )}
+
+      <Dialog open={!!sessionDetail} onOpenChange={(v) => !v && setSessionDetail(null)}>
+        <DialogContent>
+          {sessionDetail && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{sessionDetail._class?.name ?? `Lớp #${sessionDetail.class_id}`}</DialogTitle>
+                <DialogDescription className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  {formatSessionRange(sessionDetail.starts_at, sessionDetail.ends_at)}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-wrap gap-2">
+                {sessionDetail._class?.subject && (
+                  <Badge variant="secondary">{sessionDetail._class.subject}</Badge>
+                )}
+                {sessionDetail._class?.grade_level && (
+                  <Badge variant="outline">Lớp {sessionDetail._class.grade_level}</Badge>
+                )}
+              </div>
+              {sessionDetail.note && (
+                <p className="text-sm text-muted-foreground">Ghi chú: {sessionDetail.note}</p>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
