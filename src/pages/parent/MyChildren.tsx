@@ -17,6 +17,14 @@ import { formatDateTime } from "@/lib/format";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { FileList } from "@/components/FileList";
 import type { StoredFile } from "@/lib/storage";
+import { MonthCalendar, type CalendarSession } from "@/features/sessions/MonthCalendar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Child = {
   id: number;
@@ -49,6 +57,11 @@ function formatSessionRange(starts_at?: string, ends_at?: string) {
 export default function MyChildrenPage() {
   const { user } = useAuth();
   const [childId, setChildId] = useState<string>("");
+  const [month, setMonth] = useState<Date>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [sessionDetail, setSessionDetail] = useState<any | null>(null);
 
   const parentQ = useQuery({
     queryKey: ["my-parent-id", user?.id],
@@ -112,19 +125,21 @@ export default function MyChildrenPage() {
   );
 
   const sessionsQ = useQuery({
-    queryKey: ["child-sessions", selectedId, classIds],
+    queryKey: ["child-sessions", selectedId, classIds, month.toISOString()],
     enabled: !!selectedId && classIds.length > 0,
     queryFn: async () => {
-      const now = new Date().toISOString();
+      const start = new Date(month.getFullYear(), month.getMonth() - 1, 1).toISOString();
+      const end = new Date(month.getFullYear(), month.getMonth() + 2, 1).toISOString();
       const { data, error } = await supabase
         .from("class_sessions")
         .select("id, class_id, starts_at, ends_at, status, note")
         .in("class_id", classIds)
         .is("deleted_at", null)
-        .gte("ends_at", now)
+        .gte("starts_at", start)
+        .lt("starts_at", end)
         .neq("status", "cancelled")
         .order("starts_at", { ascending: true })
-        .limit(20);
+        .limit(500);
       if (error) throw error;
       return data ?? [];
     },
