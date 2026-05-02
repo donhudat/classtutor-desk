@@ -87,9 +87,8 @@ export function ClassFormDialog({
     end_date: "",
     note: "",
   });
-  const [days, setDays] = useState<number[]>([]);
-  const [startTime, setStartTime] = useState("18:00");
-  const [endTime, setEndTime] = useState("19:30");
+  // Mỗi weekday có thể có khung giờ riêng. Nếu undefined → ngày đó không học.
+  const [slots, setSlots] = useState<Record<number, { start: string; end: string }>>({});
 
   useEffect(() => {
     if (open) {
@@ -102,16 +101,31 @@ export function ClassFormDialog({
         note: editing?.note ?? "",
       });
       const sched = editing?.schedule ?? [];
-      setDays(Array.from(new Set(sched.map((s) => s.weekday))));
-      if (sched[0]) {
-        setStartTime(sched[0].start);
-        setEndTime(sched[0].end);
-      } else {
-        setStartTime("18:00");
-        setEndTime("19:30");
-      }
+      const next: Record<number, { start: string; end: string }> = {};
+      sched.forEach((s) => {
+        next[s.weekday] = { start: s.start, end: s.end };
+      });
+      setSlots(next);
     }
   }, [open, editing]);
+
+  const toggleDay = (wd: number) => {
+    setSlots((cur) => {
+      const next = { ...cur };
+      if (next[wd]) {
+        delete next[wd];
+      } else {
+        // Mặc định giờ học: nếu đã có ngày khác thì copy giờ của ngày đầu tiên, ngược lại 18:00–19:30.
+        const existing = Object.values(cur)[0];
+        next[wd] = existing ? { ...existing } : { start: "18:00", end: "19:30" };
+      }
+      return next;
+    });
+  };
+
+  const updateSlot = (wd: number, key: "start" | "end", val: string) => {
+    setSlots((cur) => ({ ...cur, [wd]: { ...cur[wd], [key]: val } }));
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,16 +137,31 @@ export function ClassFormDialog({
       toast({ title: "Lỗi", description: parsed.error.errors[0].message, variant: "destructive" });
       return;
     }
-    if (days.length === 0) {
+    const entries = Object.entries(slots).map(([wd, t]) => ({
+      weekday: Number(wd),
+      start: t.start,
+      end: t.end,
+    }));
+    if (entries.length === 0) {
       toast({ title: "Lỗi", description: "Chọn ít nhất 1 ngày trong tuần", variant: "destructive" });
       return;
     }
-    if (endTime <= startTime) {
-      toast({ title: "Lỗi", description: "Giờ kết thúc phải sau giờ bắt đầu", variant: "destructive" });
-      return;
+    for (const e of entries) {
+      if (!e.start || !e.end || e.end <= e.start) {
+        const lbl = WEEKDAYS.find((w) => w.v === e.weekday)?.label ?? "";
+        toast({
+          title: "Lỗi",
+          description: `Giờ kết thúc phải sau giờ bắt đầu (${lbl})`,
+          variant: "destructive",
+        });
+        return;
+      }
     }
-
-    const schedule = days.map((d) => ({ weekday: d, start: startTime, end: endTime }));
+    const schedule = entries.sort((a, b) => {
+      // Thứ tự T2..CN cho dễ nhìn
+      const order = (w: number) => (w === 0 ? 7 : w);
+      return order(a.weekday) - order(b.weekday);
+    });
     const payload = {
       name: parsed.data.name,
       subject: parsed.data.subject,
@@ -264,18 +293,17 @@ export function ClassFormDialog({
 
           <div>
             <Label>Lịch học cố định trong tuần</Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Chọn các ngày trong tuần và đặt khung giờ riêng cho từng ngày.
+            </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {WEEKDAYS.map((d) => {
-                const checked = days.includes(d.v);
+                const checked = !!slots[d.v];
                 return (
                   <button
                     key={d.v}
                     type="button"
-                    onClick={() =>
-                      setDays((cur) =>
-                        cur.includes(d.v) ? cur.filter((x) => x !== d.v) : [...cur, d.v],
-                      )
-                    }
+                    onClick={() => toggleDay(d.v)}
                     className={`rounded-md border px-3 py-1.5 text-sm transition-colors ${
                       checked
                         ? "border-primary bg-primary text-primary-foreground"
@@ -287,17 +315,31 @@ export function ClassFormDialog({
                 );
               })}
             </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Giờ bắt đầu</Label>
-              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
-            </div>
-            <div>
-              <Label>Giờ kết thúc</Label>
-              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
-            </div>
+            {Object.keys(slots).length > 0 && (
+              <div className="mt-3 space-y-2 rounded-md border border-border bg-muted/30 p-3">
+                {WEEKDAYS.filter((d) => slots[d.v]).map((d) => (
+                  <div key={d.v} className="flex items-center gap-2">
+                    <span className="w-10 shrink-0 text-sm font-medium">{d.label}</span>
+                    <Input
+                      type="time"
+                      value={slots[d.v].start}
+                      onChange={(e) => updateSlot(d.v, "start", e.target.value)}
+                      className="h-9"
+                      required
+                    />
+                    <span className="text-sm text-muted-foreground">→</span>
+                    <Input
+                      type="time"
+                      value={slots[d.v].end}
+                      onChange={(e) => updateSlot(d.v, "end", e.target.value)}
+                      className="h-9"
+                      required
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
