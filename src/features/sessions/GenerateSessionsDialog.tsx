@@ -106,7 +106,23 @@ export function GenerateSessionsDialog({
     const fromISO = combine(from, "00:00");
     const toISO = combine(to, "23:59");
 
-    // Lấy tất cả buổi đã có trong khoảng cho mọi lớp để tránh trùng.
+    // Xoá (soft-delete) các buổi CŨ trong khoảng — nhưng chỉ những buổi chưa được điểm danh
+    // và đang ở trạng thái "scheduled" để không làm mất dữ liệu lịch sử.
+    const { error: delErr } = await supabase
+      .from("class_sessions")
+      .update({ deleted_at: new Date().toISOString() })
+      .gte("starts_at", fromISO)
+      .lte("starts_at", toISO)
+      .eq("status", "scheduled")
+      .is("attendance_taken_at", null)
+      .is("deleted_at", null);
+    if (delErr) {
+      setLoading(false);
+      toast({ title: "Lỗi", description: delErr.message, variant: "destructive" });
+      return;
+    }
+
+    // Lấy lại các buổi còn tồn tại (đã điểm danh / completed / cancelled) để tránh trùng slot.
     const { data: existing, error: existErr } = await supabase
       .from("class_sessions")
       .select("class_id, starts_at")
@@ -157,12 +173,14 @@ export function GenerateSessionsDialog({
 
     if (rows.length === 0) {
       setLoading(false);
-      toast({ title: "Tất cả buổi đã tồn tại" });
+      toast({ title: "Không có buổi mới để tạo" });
       onOpenChange(false);
       return;
     }
 
-    const { error } = await supabase.from("class_sessions").insert(rows);
+    const { error } = await supabase
+      .from("class_sessions")
+      .upsert(rows, { onConflict: "class_id,starts_at", ignoreDuplicates: true });
     setLoading(false);
     if (error) {
       toast({ title: "Lỗi", description: error.message, variant: "destructive" });
