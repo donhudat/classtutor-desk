@@ -10,13 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -47,66 +40,76 @@ export function GenerateSessionsDialog({
   open,
   onOpenChange,
   classes,
-  defaultClassId,
   onGenerated,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   classes: ClassWithSchedule[];
+  /** Giữ tham số này để tương thích, nhưng không dùng nữa */
   defaultClassId?: number;
   onGenerated?: () => void;
 }) {
   const { profile } = useAuth();
-  const [classId, setClassId] = useState<number | undefined>();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const cls = useMemo(() => classes.find((c) => c.id === classId), [classes, classId]);
-
   useEffect(() => {
     if (!open) return;
-    setClassId(defaultClassId ?? classes[0]?.id);
     const today = new Date();
     const inAMonth = new Date();
     inAMonth.setDate(today.getDate() + 30);
     setFrom(ymd(today));
     setTo(ymd(inAMonth));
-  }, [open, classes, defaultClassId]);
+  }, [open]);
 
-  const previewSlots = useMemo(() => {
-    if (!cls || !from || !to || !cls.schedule?.length) return [] as { date: string; start: string; end: string }[];
+  // Tính tổng số buổi sẽ sinh trên TẤT CẢ lớp.
+  const preview = useMemo(() => {
+    if (!from || !to) return { total: 0, perClass: [] as { name: string; count: number }[] };
     const start = parseYMD(from);
     const end = parseYMD(to);
-    const clsStart = parseYMD(cls.start_date);
-    const clsEnd = cls.end_date ? parseYMD(cls.end_date) : null;
-    const lower = start < clsStart ? clsStart : start;
-    const upper = clsEnd && end > clsEnd ? clsEnd : end;
-    const slots: { date: string; start: string; end: string }[] = [];
-    for (let d = new Date(lower); d <= upper; d.setDate(d.getDate() + 1)) {
-      const wd = d.getDay();
-      for (const s of cls.schedule) {
-        if (s.weekday === wd) slots.push({ date: ymd(d), start: s.start, end: s.end });
+    const perClass: { name: string; count: number }[] = [];
+    let total = 0;
+    for (const cls of classes) {
+      if (!cls.schedule?.length) continue;
+      const clsStart = parseYMD(cls.start_date);
+      const clsEnd = cls.end_date ? parseYMD(cls.end_date) : null;
+      const lower = start < clsStart ? clsStart : start;
+      const upper = clsEnd && end > clsEnd ? clsEnd : end;
+      let count = 0;
+      for (let d = new Date(lower); d <= upper; d.setDate(d.getDate() + 1)) {
+        const wd = d.getDay();
+        for (const s of cls.schedule) {
+          if (s.weekday === wd) count++;
+        }
+      }
+      if (count > 0) {
+        total += count;
+        perClass.push({ name: cls.name, count });
       }
     }
-    return slots;
-  }, [cls, from, to]);
+    return { total, perClass };
+  }, [classes, from, to]);
 
   const submit = async () => {
-    if (!cls || !profile) return;
-    if (previewSlots.length === 0) {
+    if (!profile) return;
+    if (!from || !to) {
+      toast({ title: "Chọn khoảng ngày", variant: "destructive" });
+      return;
+    }
+    if (preview.total === 0) {
       toast({ title: "Không có buổi nào để tạo", variant: "destructive" });
       return;
     }
     setLoading(true);
 
-    // Lấy danh sách buổi đã có trong khoảng để tránh trùng
     const fromISO = combine(from, "00:00");
     const toISO = combine(to, "23:59");
+
+    // Lấy tất cả buổi đã có trong khoảng cho mọi lớp để tránh trùng.
     const { data: existing, error: existErr } = await supabase
       .from("class_sessions")
-      .select("starts_at")
-      .eq("class_id", cls.id)
+      .select("class_id, starts_at")
       .gte("starts_at", fromISO)
       .lte("starts_at", toISO)
       .is("deleted_at", null);
@@ -115,17 +118,42 @@ export function GenerateSessionsDialog({
       toast({ title: "Lỗi", description: existErr.message, variant: "destructive" });
       return;
     }
-    const existingSet = new Set((existing ?? []).map((r) => r.starts_at));
+    const existingSet = new Set(
+      (existing ?? []).map((r: any) => `${r.class_id}|${r.starts_at}`),
+    );
 
-    const rows = previewSlots
-      .map((s) => ({
-        tenant_id: profile.tenant_id,
-        class_id: cls.id,
-        starts_at: combine(s.date, s.start),
-        ends_at: combine(s.date, s.end),
-        status: "scheduled" as const,
-      }))
-      .filter((r) => !existingSet.has(r.starts_at));
+    const start = parseYMD(from);
+    const end = parseYMD(to);
+    const rows: {
+      tenant_id: number;
+      class_id: number;
+      starts_at: string;
+      ends_at: string;
+      status: "scheduled";
+    }[] = [];
+
+    for (const cls of classes) {
+      if (!cls.schedule?.length) continue;
+      const clsStart = parseYMD(cls.start_date);
+      const clsEnd = cls.end_date ? parseYMD(cls.end_date) : null;
+      const lower = start < clsStart ? clsStart : start;
+      const upper = clsEnd && end > clsEnd ? clsEnd : end;
+      for (let d = new Date(lower); d <= upper; d.setDate(d.getDate() + 1)) {
+        const wd = d.getDay();
+        for (const s of cls.schedule) {
+          if (s.weekday !== wd) continue;
+          const startsAt = combine(ymd(d), s.start);
+          if (existingSet.has(`${cls.id}|${startsAt}`)) continue;
+          rows.push({
+            tenant_id: profile.tenant_id,
+            class_id: cls.id,
+            starts_at: startsAt,
+            ends_at: combine(ymd(d), s.end),
+            status: "scheduled",
+          });
+        }
+      }
+    }
 
     if (rows.length === 0) {
       setLoading(false);
@@ -145,34 +173,19 @@ export function GenerateSessionsDialog({
     onOpenChange(false);
   };
 
+  const skipped = preview.total > 0 ? preview.perClass.length : 0;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display text-xl">Sinh buổi học từ lịch</DialogTitle>
           <DialogDescription>
-            Tự động tạo các buổi học cho lớp dựa theo lịch cố định trong tuần.
+            Tự động tạo buổi cho <span className="font-semibold">tất cả lớp</span> dựa trên lịch
+            cố định trong tuần. Buổi đã có sẽ được bỏ qua.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div>
-            <Label>Lớp</Label>
-            <Select
-              value={classId ? String(classId) : undefined}
-              onValueChange={(v) => setClassId(Number(v))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Chọn lớp" />
-              </SelectTrigger>
-              <SelectContent>
-                {classes.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Từ ngày</Label>
@@ -183,16 +196,29 @@ export function GenerateSessionsDialog({
               <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
             </div>
           </div>
+
           <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-            Sẽ tạo <span className="font-semibold">{previewSlots.length}</span> buổi.{" "}
-            <span className="text-muted-foreground">Buổi trùng giờ bắt đầu sẽ bị bỏ qua.</span>
+            Sẽ tạo tối đa <span className="font-semibold">{preview.total}</span> buổi từ{" "}
+            <span className="font-semibold">{skipped}</span> lớp.
+            <span className="ml-1 text-muted-foreground">Buổi trùng giờ sẽ bị bỏ qua.</span>
           </div>
+
+          {preview.perClass.length > 0 && (
+            <div className="max-h-48 space-y-1 overflow-auto rounded-md border border-border bg-background px-3 py-2 text-sm">
+              {preview.perClass.map((p) => (
+                <div key={p.name} className="flex items-center justify-between gap-2">
+                  <span className="truncate">{p.name}</span>
+                  <span className="shrink-0 text-muted-foreground">{p.count} buổi</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Huỷ
           </Button>
-          <Button onClick={submit} disabled={loading || previewSlots.length === 0}>
+          <Button onClick={submit} disabled={loading || preview.total === 0}>
             {loading ? "Đang tạo…" : "Tạo buổi"}
           </Button>
         </DialogFooter>
