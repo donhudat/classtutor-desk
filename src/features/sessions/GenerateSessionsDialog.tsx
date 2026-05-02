@@ -200,7 +200,8 @@ export function GenerateSessionsDialog({
           <DialogTitle className="font-display text-xl">Sinh buổi học từ lịch</DialogTitle>
           <DialogDescription>
             Tự động tạo buổi cho <span className="font-semibold">tất cả lớp</span> dựa trên lịch
-            cố định trong tuần. Buổi đã có sẽ được bỏ qua.
+            cố định trong tuần. Các buổi cũ <span className="font-semibold">chưa điểm danh</span>{" "}
+            trong khoảng sẽ bị thay thế; buổi đã điểm danh được giữ nguyên.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
