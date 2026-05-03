@@ -140,6 +140,7 @@ export function GenerateSessionsDialog({
 
     const start = parseYMD(from);
     const end = parseYMD(to);
+    const generatedSet = new Set<string>();
     const rows: {
       tenant_id: number;
       class_id: number;
@@ -159,7 +160,9 @@ export function GenerateSessionsDialog({
         for (const s of cls.schedule) {
           if (s.weekday !== wd) continue;
           const startsAt = combine(ymd(d), s.start);
-          if (existingSet.has(`${cls.id}|${startsAt}`)) continue;
+          const rowKey = `${cls.id}|${startsAt}`;
+          if (existingSet.has(rowKey) || generatedSet.has(rowKey)) continue;
+          generatedSet.add(rowKey);
           rows.push({
             tenant_id: profile.tenant_id,
             class_id: cls.id,
@@ -178,9 +181,7 @@ export function GenerateSessionsDialog({
       return;
     }
 
-    const { error } = await supabase
-      .from("class_sessions")
-      .upsert(rows, { onConflict: "class_id,starts_at", ignoreDuplicates: true });
+    const { error } = await supabase.from("class_sessions").insert(rows);
     setLoading(false);
     if (error) {
       toast({ title: "Lỗi", description: error.message, variant: "destructive" });
