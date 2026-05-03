@@ -169,7 +169,7 @@ export default function MyChildrenPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("submissions")
-        .select("id, assignment_id, status, score, feedback, submitted_at, returned_at")
+        .select("id, assignment_id, status, score, feedback, content, submitted_at, returned_at, graded_at")
         .eq("student_id", selectedId!);
       if (error) throw error;
       return data ?? [];
@@ -181,6 +181,39 @@ export default function MyChildrenPage() {
     (submissionsQ.data ?? []).forEach((s: any) => m.set(s.assignment_id, s));
     return m;
   }, [submissionsQ.data]);
+
+  const submissionIds = useMemo(
+    () => (submissionsQ.data ?? []).map((s: any) => s.id),
+    [submissionsQ.data],
+  );
+
+  const subFilesQ = useQuery({
+    queryKey: ["child-submission-files", submissionIds],
+    enabled: submissionIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("submission_files")
+        .select("id, submission_id, file_name, file_size, storage_path, mime_type")
+        .in("submission_id", submissionIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const subFilesMap = useMemo(() => {
+    const m = new Map<number, StoredFile[]>();
+    (subFilesQ.data ?? []).forEach((f: any) => {
+      const list = m.get(f.submission_id) ?? [];
+      list.push({
+        name: f.file_name,
+        path: f.storage_path,
+        size: f.file_size,
+        type: f.mime_type,
+      } as StoredFile);
+      m.set(f.submission_id, list);
+    });
+    return m;
+  }, [subFilesQ.data]);
 
   const feedbacksQ = useQuery({
     queryKey: ["child-feedbacks", selectedId],
