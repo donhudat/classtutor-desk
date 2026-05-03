@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Download, Loader2, File } from "lucide-react";
-import { getSignedUrl, formatFileSize, type StoredFile } from "@/lib/storage";
+import { formatFileSize, type StoredFile } from "@/lib/storage";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
 export function FileList({
@@ -19,11 +20,27 @@ export function FileList({
   const download = async (f: StoredFile) => {
     setBusy(f.path);
     try {
-      const url = await getSignedUrl(bucket, f.path, 60);
-      // mở tab mới — browser tự tải nếu Content-Disposition; ít nhất user xem được
-      window.open(url, "_blank", "noopener");
+      // Tải qua SDK (blob) để tránh trình chặn quảng cáo (ERR_BLOCKED_BY_CLIENT)
+      const { data, error } = await supabase.storage.from(bucket).download(f.path);
+      if (error) throw error;
+      const blobUrl = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = f.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } catch (e: any) {
-      toast({ title: "Không tải được file", description: e.message, variant: "destructive" });
+      const msg = String(e?.message ?? e);
+      const blocked = /Failed to fetch|NetworkError|blocked/i.test(msg);
+      toast({
+        title: "Không tải được file",
+        description: blocked
+          ? "Có thể trình duyệt/AdBlock đang chặn miền backend. Hãy tắt AdBlock cho trang này rồi thử lại."
+          : msg,
+        variant: "destructive",
+      });
     } finally {
       setBusy(null);
     }
