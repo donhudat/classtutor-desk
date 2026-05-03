@@ -208,8 +208,8 @@ export default function MyChildrenPage() {
         name: f.file_name,
         path: f.storage_path,
         size: f.file_size,
-        type: f.mime_type,
-      } as StoredFile);
+        mime: f.mime_type,
+      });
       m.set(f.submission_id, list);
     });
     return m;
