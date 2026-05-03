@@ -421,12 +421,44 @@ export default function MyChildrenPage() {
                           compact
                         />
                       )}
+                      {sub && (
+                        <div className="space-y-2 rounded-md border border-border/60 bg-muted/30 p-2">
+                          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Bài đã nộp
+                            {sub.submitted_at && (
+                              <span className="ml-2 normal-case text-muted-foreground/80">
+                                {formatDateTime(sub.submitted_at)}
+                              </span>
+                            )}
+                          </div>
+                          {sub.content && (
+                            <p className="whitespace-pre-wrap text-sm">{sub.content}</p>
+                          )}
+                          {(subFilesMap.get(sub.id)?.length ?? 0) > 0 && (
+                            <FileList
+                              bucket="submission-files"
+                              files={subFilesMap.get(sub.id)!}
+                              compact
+                            />
+                          )}
+                          {!sub.content && (subFilesMap.get(sub.id)?.length ?? 0) === 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              (Không có nội dung hoặc file đính kèm)
+                            </p>
+                          )}
+                        </div>
+                      )}
                       {sub?.feedback && (
                         <div className="rounded-md border border-primary/30 bg-primary/5 p-2 text-sm">
                           <div className="text-xs font-medium uppercase tracking-wide text-primary">
-                            Nhận xét
+                            Nhận xét của giáo viên
                           </div>
                           <p className="whitespace-pre-wrap">{sub.feedback}</p>
+                          {sub.returned_at && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Trả bài: {formatDateTime(sub.returned_at)}
+                            </p>
+                          )}
                         </div>
                       )}
                     </CardContent>
