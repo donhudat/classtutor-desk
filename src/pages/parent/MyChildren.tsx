@@ -169,7 +169,7 @@ export default function MyChildrenPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("submissions")
-        .select("id, assignment_id, status, score, feedback, submitted_at, returned_at")
+        .select("id, assignment_id, status, score, feedback, content, submitted_at, returned_at, graded_at")
         .eq("student_id", selectedId!);
       if (error) throw error;
       return data ?? [];
@@ -181,6 +181,39 @@ export default function MyChildrenPage() {
     (submissionsQ.data ?? []).forEach((s: any) => m.set(s.assignment_id, s));
     return m;
   }, [submissionsQ.data]);
+
+  const submissionIds = useMemo(
+    () => (submissionsQ.data ?? []).map((s: any) => s.id),
+    [submissionsQ.data],
+  );
+
+  const subFilesQ = useQuery({
+    queryKey: ["child-submission-files", submissionIds],
+    enabled: submissionIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("submission_files")
+        .select("id, submission_id, file_name, file_size, storage_path, mime_type")
+        .in("submission_id", submissionIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const subFilesMap = useMemo(() => {
+    const m = new Map<number, StoredFile[]>();
+    (subFilesQ.data ?? []).forEach((f: any) => {
+      const list = m.get(f.submission_id) ?? [];
+      list.push({
+        name: f.file_name,
+        path: f.storage_path,
+        size: f.file_size,
+        mime: f.mime_type,
+      });
+      m.set(f.submission_id, list);
+    });
+    return m;
+  }, [subFilesQ.data]);
 
   const feedbacksQ = useQuery({
     queryKey: ["child-feedbacks", selectedId],
@@ -388,12 +421,44 @@ export default function MyChildrenPage() {
                           compact
                         />
                       )}
+                      {sub && (
+                        <div className="space-y-2 rounded-md border border-border/60 bg-muted/30 p-2">
+                          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            Bài đã nộp
+                            {sub.submitted_at && (
+                              <span className="ml-2 normal-case text-muted-foreground/80">
+                                {formatDateTime(sub.submitted_at)}
+                              </span>
+                            )}
+                          </div>
+                          {sub.content && (
+                            <p className="whitespace-pre-wrap text-sm">{sub.content}</p>
+                          )}
+                          {(subFilesMap.get(sub.id)?.length ?? 0) > 0 && (
+                            <FileList
+                              bucket="submission-files"
+                              files={subFilesMap.get(sub.id)!}
+                              compact
+                            />
+                          )}
+                          {!sub.content && (subFilesMap.get(sub.id)?.length ?? 0) === 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              (Không có nội dung hoặc file đính kèm)
+                            </p>
+                          )}
+                        </div>
+                      )}
                       {sub?.feedback && (
                         <div className="rounded-md border border-primary/30 bg-primary/5 p-2 text-sm">
                           <div className="text-xs font-medium uppercase tracking-wide text-primary">
-                            Nhận xét
+                            Nhận xét của giáo viên
                           </div>
                           <p className="whitespace-pre-wrap">{sub.feedback}</p>
+                          {sub.returned_at && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Trả bài: {formatDateTime(sub.returned_at)}
+                            </p>
+                          )}
                         </div>
                       )}
                     </CardContent>
