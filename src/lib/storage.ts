@@ -31,8 +31,23 @@ export function validateFile(file: File): string | null {
 }
 
 function safeFileName(name: string) {
-  // Loại ký tự nguy hiểm cho path; giữ tiếng Việt
-  return name.replace(/[\\/]/g, "_").slice(0, 200);
+  // Supabase Storage chỉ chấp nhận ký tự ASCII an toàn cho key.
+  // Bỏ dấu tiếng Việt, thay khoảng trắng và ký tự lạ bằng "_".
+  const dotIdx = name.lastIndexOf(".");
+  const base = dotIdx > 0 ? name.slice(0, dotIdx) : name;
+  const ext = dotIdx > 0 ? name.slice(dotIdx) : "";
+  const normalize = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // bỏ dấu
+      .replace(/đ/g, "d")
+      .replace(/Đ/g, "D")
+      .replace(/[^a-zA-Z0-9._-]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^[_.-]+|[_.-]+$/g, "");
+  const safeBase = normalize(base) || "file";
+  const safeExt = ext ? "." + normalize(ext.slice(1)) : "";
+  return (safeBase + safeExt).slice(0, 200);
 }
 
 export async function uploadFile(
