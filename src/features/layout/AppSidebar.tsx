@@ -10,6 +10,7 @@ import {
   Wallet,
   Settings,
   LogOut,
+  Search,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -40,6 +41,7 @@ const teacherItems: Item[] = [
   { title: "Học sinh", url: "/students", icon: Users },
   { title: "Phụ huynh", url: "/parents", icon: UserSquare2 },
   { title: "Học phí", url: "/payments", icon: Wallet },
+  { title: "SEO từ khóa", url: "/seo-keywords", icon: Search },
 ];
 
 const studentItems: Item[] = [
