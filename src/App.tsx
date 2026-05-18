@@ -24,6 +24,7 @@ import MyChildrenPage from "@/pages/parent/MyChildren";
 import PaymentsPage from "@/pages/Payments";
 import MyPaymentsPage from "@/pages/parent/MyPayments";
 import SettingsPage from "@/pages/Settings";
+import SeoKeywordsPage from "@/pages/SeoKeywords";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
@@ -123,6 +124,14 @@ const App = () => (
                 element={
                   <ProtectedRoute allow={["teacher"]}>
                     <PaymentsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/seo-keywords"
+                element={
+                  <ProtectedRoute allow={["teacher"]}>
+                    <SeoKeywordsPage />
                   </ProtectedRoute>
                 }
               />
