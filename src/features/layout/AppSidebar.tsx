@@ -71,10 +71,10 @@ export function AppSidebar() {
     : [];
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-sidebar-border">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border/60">
+      <SidebarHeader className="border-b border-sidebar-border/60">
         <div className="flex items-center gap-2 px-2 py-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground font-display text-lg font-semibold">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent text-primary-foreground font-display text-base font-semibold shadow-md">
             L
           </div>
           {!collapsed && (
@@ -91,18 +91,18 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
+        <SidebarGroup className="mt-2">
           {!collapsed && <SidebarGroupLabel>Điều hướng</SidebarGroupLabel>}
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1">
               {items.map((item) => (
                 <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild tooltip={item.title}>
+                  <SidebarMenuButton asChild tooltip={item.title} className="rounded-xl h-10">
                     <NavLink
                       to={item.url}
                       end={item.url === "/"}
-                      className="hover:bg-sidebar-accent/60"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      className="hover:bg-sidebar-accent/70 transition-colors"
+                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                     >
                       <item.icon className="h-4 w-4" />
                       {!collapsed && <span>{item.title}</span>}
@@ -114,16 +114,16 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
+        <SidebarGroup className="mt-4">
             {!collapsed && <SidebarGroupLabel>Hệ thống</SidebarGroupLabel>}
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Cài đặt">
+                  <SidebarMenuButton asChild tooltip="Cài đặt" className="rounded-xl h-10">
                     <NavLink
                       to="/settings"
-                      className="hover:bg-sidebar-accent/60"
-                      activeClassName="bg-sidebar-accent text-sidebar-primary font-medium"
+                      className="hover:bg-sidebar-accent/70 transition-colors"
+                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                     >
                       <Settings className="h-4 w-4" />
                       {!collapsed && <span>Cài đặt</span>}
@@ -135,9 +135,9 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border">
+      <SidebarFooter className="border-t border-sidebar-border/60">
         <div className="flex items-center gap-2 px-2 py-2">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sidebar-accent-foreground text-xs font-medium">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-secondary-foreground text-xs font-semibold">
             {profile?.full_name?.[0]?.toUpperCase() ?? "?"}
           </div>
           {!collapsed && (
