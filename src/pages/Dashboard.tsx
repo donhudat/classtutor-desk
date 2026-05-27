@@ -39,21 +39,36 @@ function StatCard({
   label,
   value,
   loading,
+  tone = "primary",
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number | string;
   loading?: boolean;
+  tone?: "primary" | "accent" | "success" | "warning";
 }) {
+  const toneMap = {
+    primary: "bg-primary/10 text-primary",
+    accent: "bg-accent/10 text-accent",
+    success: "bg-success/10 text-success",
+    warning: "bg-warning/10 text-warning",
+  } as const;
   return (
-    <Card className="border-border/80">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="font-display text-3xl font-semibold">
-          {loading ? "—" : value}
+    <Card className="group relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm hover:-translate-y-0.5 hover:shadow-lg">
+      <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1.5">
+            <p className="text-[12.5px] font-medium uppercase tracking-wider text-muted-foreground/80">
+              {label}
+            </p>
+            <div className="font-display text-3xl font-semibold tracking-tight">
+              {loading ? <span className="inline-block h-8 w-16 animate-pulse rounded-md bg-muted" /> : value}
+            </div>
+          </div>
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${toneMap[tone]} shadow-sm`}>
+            <Icon className="h-5 w-5" />
+          </div>
         </div>
       </CardContent>
     </Card>
