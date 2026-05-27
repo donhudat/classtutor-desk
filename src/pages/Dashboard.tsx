@@ -39,21 +39,36 @@ function StatCard({
   label,
   value,
   loading,
+  tone = "primary",
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number | string;
   loading?: boolean;
+  tone?: "primary" | "accent" | "success" | "warning";
 }) {
+  const toneMap = {
+    primary: "bg-primary/10 text-primary",
+    accent: "bg-accent/10 text-accent",
+    success: "bg-success/10 text-success",
+    warning: "bg-warning/10 text-warning",
+  } as const;
   return (
-    <Card className="border-border/80">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="font-display text-3xl font-semibold">
-          {loading ? "—" : value}
+    <Card className="group relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm hover:-translate-y-0.5 hover:shadow-lg">
+      <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1.5">
+            <p className="text-[12.5px] font-medium uppercase tracking-wider text-muted-foreground/80">
+              {label}
+            </p>
+            <div className="font-display text-3xl font-semibold tracking-tight">
+              {loading ? <span className="inline-block h-8 w-16 animate-pulse rounded-md bg-muted" /> : value}
+            </div>
+          </div>
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${toneMap[tone]} shadow-sm`}>
+            <Icon className="h-5 w-5" />
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -266,15 +281,10 @@ export default function Dashboard() {
       {isTeacher ? (
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard icon={GraduationCap} label="Lớp đang hoạt động" value={stats.data?.classes ?? 0} loading={stats.isLoading} />
-            <StatCard icon={Users} label="Học sinh" value={stats.data?.students ?? 0} loading={stats.isLoading} />
-            <StatCard icon={UserSquare2} label="Phụ huynh" value={stats.data?.parents ?? 0} loading={stats.isLoading} />
-            <StatCard
-              icon={CalendarDays}
-              label="Lớp dự kiến trong tháng"
-              value={monthly.data?.plannedClasses ?? 0}
-              loading={monthly.isLoading}
-            />
+            <StatCard tone="primary" icon={GraduationCap} label="Lớp đang hoạt động" value={stats.data?.classes ?? 0} loading={stats.isLoading} />
+            <StatCard tone="accent" icon={Users} label="Học sinh" value={stats.data?.students ?? 0} loading={stats.isLoading} />
+            <StatCard tone="success" icon={UserSquare2} label="Phụ huynh" value={stats.data?.parents ?? 0} loading={stats.isLoading} />
+            <StatCard tone="warning" icon={CalendarDays} label="Lớp dự kiến tháng" value={monthly.data?.plannedClasses ?? 0} loading={monthly.isLoading} />
           </div>
 
           <div>
@@ -282,30 +292,10 @@ export default function Dashboard() {
               Thống kê tháng {new Date().getMonth() + 1}/{new Date().getFullYear()}
             </h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard
-                icon={CalendarDays}
-                label="Buổi dự kiến"
-                value={monthly.data?.plannedSessions ?? 0}
-                loading={monthly.isLoading}
-              />
-              <StatCard
-                icon={CheckCircle2}
-                label="Buổi đã dạy"
-                value={`${monthly.data?.taughtSessions ?? 0} / ${monthly.data?.plannedSessions ?? 0}`}
-                loading={monthly.isLoading}
-              />
-              <StatCard
-                icon={TrendingUp}
-                label="Học phí ước tính (cả tháng)"
-                value={formatVND(monthly.data?.estimatedTuition ?? 0)}
-                loading={monthly.isLoading}
-              />
-              <StatCard
-                icon={Wallet}
-                label="Học phí tới hiện tại"
-                value={formatVND(monthly.data?.earnedTuition ?? 0)}
-                loading={monthly.isLoading}
-              />
+              <StatCard tone="primary" icon={CalendarDays} label="Buổi dự kiến" value={monthly.data?.plannedSessions ?? 0} loading={monthly.isLoading} />
+              <StatCard tone="success" icon={CheckCircle2} label="Buổi đã dạy" value={`${monthly.data?.taughtSessions ?? 0} / ${monthly.data?.plannedSessions ?? 0}`} loading={monthly.isLoading} />
+              <StatCard tone="accent" icon={TrendingUp} label="Học phí ước tính" value={formatVND(monthly.data?.estimatedTuition ?? 0)} loading={monthly.isLoading} />
+              <StatCard tone="warning" icon={Wallet} label="Học phí đến nay" value={formatVND(monthly.data?.earnedTuition ?? 0)} loading={monthly.isLoading} />
             </div>
           </div>
 

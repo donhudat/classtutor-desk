@@ -71,10 +71,10 @@ export function AppSidebar() {
     : [];
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border/60">
-      <SidebarHeader className="border-b border-sidebar-border/60">
-        <div className="flex items-center gap-2 px-2 py-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent text-primary-foreground font-display text-base font-semibold shadow-md">
+    <Sidebar collapsible="icon" variant="floating" className="border-none">
+      <SidebarHeader className="border-b border-sidebar-border/60 pb-3">
+        <div className="flex items-center gap-2.5 px-1.5 py-2">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-primary to-accent text-primary-foreground font-display text-base font-semibold shadow-lg shadow-primary/25">
             L
           </div>
           {!collapsed && (
@@ -90,21 +90,25 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup className="mt-2">
-          {!collapsed && <SidebarGroupLabel>Điều hướng</SidebarGroupLabel>}
+      <SidebarContent className="px-1">
+        <SidebarGroup className="mt-3">
+          {!collapsed && (
+            <SidebarGroupLabel className="px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+              Điều hướng
+            </SidebarGroupLabel>
+          )}
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
               {items.map((item) => (
                 <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild tooltip={item.title} className="rounded-xl h-10">
+                  <SidebarMenuButton asChild tooltip={item.title} className="rounded-xl h-10 px-3 text-[13.5px]">
                     <NavLink
                       to={item.url}
                       end={item.url === "/"}
-                      className="hover:bg-sidebar-accent/70 transition-colors"
-                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      className="hover:bg-sidebar-accent/60 transition-all"
+                      activeClassName="bg-gradient-to-r from-sidebar-accent to-sidebar-accent/60 text-sidebar-accent-foreground font-semibold shadow-sm"
                     >
-                      <item.icon className="h-4 w-4" />
+                      <item.icon className="h-[18px] w-[18px]" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
@@ -114,18 +118,22 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup className="mt-4">
-            {!collapsed && <SidebarGroupLabel>Hệ thống</SidebarGroupLabel>}
+        <SidebarGroup className="mt-6">
+            {!collapsed && (
+              <SidebarGroupLabel className="px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+                Hệ thống
+              </SidebarGroupLabel>
+            )}
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Cài đặt" className="rounded-xl h-10">
+                  <SidebarMenuButton asChild tooltip="Cài đặt" className="rounded-xl h-10 px-3 text-[13.5px]">
                     <NavLink
                       to="/settings"
-                      className="hover:bg-sidebar-accent/70 transition-colors"
-                      activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      className="hover:bg-sidebar-accent/60 transition-all"
+                      activeClassName="bg-gradient-to-r from-sidebar-accent to-sidebar-accent/60 text-sidebar-accent-foreground font-semibold shadow-sm"
                     >
-                      <Settings className="h-4 w-4" />
+                      <Settings className="h-[18px] w-[18px]" />
                       {!collapsed && <span>Cài đặt</span>}
                     </NavLink>
                   </SidebarMenuButton>
