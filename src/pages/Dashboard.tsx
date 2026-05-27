@@ -281,15 +281,10 @@ export default function Dashboard() {
       {isTeacher ? (
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard icon={GraduationCap} label="Lớp đang hoạt động" value={stats.data?.classes ?? 0} loading={stats.isLoading} />
-            <StatCard icon={Users} label="Học sinh" value={stats.data?.students ?? 0} loading={stats.isLoading} />
-            <StatCard icon={UserSquare2} label="Phụ huynh" value={stats.data?.parents ?? 0} loading={stats.isLoading} />
-            <StatCard
-              icon={CalendarDays}
-              label="Lớp dự kiến trong tháng"
-              value={monthly.data?.plannedClasses ?? 0}
-              loading={monthly.isLoading}
-            />
+            <StatCard tone="primary" icon={GraduationCap} label="Lớp đang hoạt động" value={stats.data?.classes ?? 0} loading={stats.isLoading} />
+            <StatCard tone="accent" icon={Users} label="Học sinh" value={stats.data?.students ?? 0} loading={stats.isLoading} />
+            <StatCard tone="success" icon={UserSquare2} label="Phụ huynh" value={stats.data?.parents ?? 0} loading={stats.isLoading} />
+            <StatCard tone="warning" icon={CalendarDays} label="Lớp dự kiến tháng" value={monthly.data?.plannedClasses ?? 0} loading={monthly.isLoading} />
           </div>
 
           <div>
@@ -297,30 +292,10 @@ export default function Dashboard() {
               Thống kê tháng {new Date().getMonth() + 1}/{new Date().getFullYear()}
             </h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard
-                icon={CalendarDays}
-                label="Buổi dự kiến"
-                value={monthly.data?.plannedSessions ?? 0}
-                loading={monthly.isLoading}
-              />
-              <StatCard
-                icon={CheckCircle2}
-                label="Buổi đã dạy"
-                value={`${monthly.data?.taughtSessions ?? 0} / ${monthly.data?.plannedSessions ?? 0}`}
-                loading={monthly.isLoading}
-              />
-              <StatCard
-                icon={TrendingUp}
-                label="Học phí ước tính (cả tháng)"
-                value={formatVND(monthly.data?.estimatedTuition ?? 0)}
-                loading={monthly.isLoading}
-              />
-              <StatCard
-                icon={Wallet}
-                label="Học phí tới hiện tại"
-                value={formatVND(monthly.data?.earnedTuition ?? 0)}
-                loading={monthly.isLoading}
-              />
+              <StatCard tone="primary" icon={CalendarDays} label="Buổi dự kiến" value={monthly.data?.plannedSessions ?? 0} loading={monthly.isLoading} />
+              <StatCard tone="success" icon={CheckCircle2} label="Buổi đã dạy" value={`${monthly.data?.taughtSessions ?? 0} / ${monthly.data?.plannedSessions ?? 0}`} loading={monthly.isLoading} />
+              <StatCard tone="accent" icon={TrendingUp} label="Học phí ước tính" value={formatVND(monthly.data?.estimatedTuition ?? 0)} loading={monthly.isLoading} />
+              <StatCard tone="warning" icon={Wallet} label="Học phí đến nay" value={formatVND(monthly.data?.earnedTuition ?? 0)} loading={monthly.isLoading} />
             </div>
           </div>
 
