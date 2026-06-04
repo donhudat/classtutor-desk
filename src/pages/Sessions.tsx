@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Wand2, ClipboardCheck, CalendarDays, List } from "lucide-react";
+import { Plus, Pencil, Trash2, Wand2, ClipboardCheck, CalendarDays, List, Check, ChevronDown, X, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/features/layout/PageHeader";
@@ -17,13 +17,16 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/format";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -39,6 +42,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { SessionFormDialog, SessionEditing } from "@/features/sessions/SessionFormDialog";
 import { GenerateSessionsDialog } from "@/features/sessions/GenerateSessionsDialog";
+import { QuickAttendance } from "@/features/sessions/QuickAttendance";
 
 type ClassRow = {
   id: number;
@@ -74,7 +78,8 @@ const STATUS_VARIANT: Record<SessionRow["status"], "default" | "secondary" | "ou
 
 export default function SessionsPage() {
   const qc = useQueryClient();
-  const [classFilter, setClassFilter] = useState<string>("all");
+  const [classFilter, setClassFilter] = useState<number[]>([]);
+  const [studentFilter, setStudentFilter] = useState<number[]>([]);
   const [open, setOpen] = useState(false);
   const [genOpen, setGenOpen] = useState(false);
   const [editing, setEditing] = useState<SessionEditing | null>(null);
@@ -83,6 +88,7 @@ export default function SessionsPage() {
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [detail, setDetail] = useState<SessionRow | null>(null);
+  const [quickOpenId, setQuickOpenId] = useState<number | null>(null);
 
   const classesQ = useQuery({
     queryKey: ["classes-min"],
@@ -97,8 +103,77 @@ export default function SessionsPage() {
     },
   });
 
+  const studentsQ = useQuery({
+    queryKey: ["students-min"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("students")
+        .select("id, profiles:profiles!students_user_id_fkey(full_name, login_id)")
+        .is("deleted_at", null);
+      if (error) {
+        // Fallback without explicit fk hint if it's missing
+        const { data: d2, error: e2 } = await supabase
+          .from("students")
+          .select("id, user_id")
+          .is("deleted_at", null);
+        if (e2) throw e2;
+        const ids = (d2 ?? []).map((s: any) => s.user_id);
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, full_name, login_id")
+          .in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
+        const pm = new Map((profs ?? []).map((p: any) => [p.id, p]));
+        return (d2 ?? [])
+          .map((s: any) => ({
+            id: s.id as number,
+            full_name: (pm.get(s.user_id) as any)?.full_name ?? "—",
+            login_id: (pm.get(s.user_id) as any)?.login_id ?? "",
+          }))
+          .sort((a, b) => a.full_name.localeCompare(b.full_name, "vi"));
+      }
+      return (data ?? [])
+        .map((s: any) => ({
+          id: s.id as number,
+          full_name: s.profiles?.full_name ?? "—",
+          login_id: s.profiles?.login_id ?? "",
+        }))
+        .sort((a, b) => a.full_name.localeCompare(b.full_name, "vi"));
+    },
+  });
+
+  // Resolve class_ids from selected students (1 student in many classes)
+  const studentClassIdsQ = useQuery({
+    queryKey: ["student-classes", studentFilter.slice().sort().join(",")],
+    enabled: studentFilter.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("class_enrollments")
+        .select("class_id")
+        .in("student_id", studentFilter)
+        .is("deleted_at", null);
+      if (error) throw error;
+      return Array.from(new Set((data ?? []).map((r: any) => r.class_id as number)));
+    },
+  });
+
+  // Combined class filter
+  const effectiveClassIds = useMemo<number[] | null>(() => {
+    if (studentFilter.length > 0) {
+      if (!studentClassIdsQ.data) return [];
+      const fromStudents = studentClassIdsQ.data;
+      if (classFilter.length === 0) return fromStudents;
+      return fromStudents.filter((id) => classFilter.includes(id));
+    }
+    return classFilter.length > 0 ? classFilter : null; // null = all
+  }, [classFilter, studentFilter, studentClassIdsQ.data]);
+
   const sessionsQ = useQuery({
-    queryKey: ["sessions", classFilter, month.toISOString()],
+    queryKey: [
+      "sessions",
+      effectiveClassIds ? effectiveClassIds.slice().sort().join(",") : "all",
+      month.toISOString(),
+    ],
+    enabled: effectiveClassIds === null || effectiveClassIds.length > 0 || studentFilter.length === 0,
     queryFn: async () => {
       const start = new Date(month.getFullYear(), month.getMonth() - 1, 1).toISOString();
       const end = new Date(month.getFullYear(), month.getMonth() + 2, 1).toISOString();
@@ -110,7 +185,7 @@ export default function SessionsPage() {
         .lt("starts_at", end)
         .order("starts_at", { ascending: false })
         .limit(500);
-      if (classFilter !== "all") q = q.eq("class_id", Number(classFilter));
+      if (effectiveClassIds !== null) q = q.in("class_id", effectiveClassIds);
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as SessionRow[];
@@ -136,8 +211,13 @@ export default function SessionsPage() {
     qc.invalidateQueries({ queryKey: ["sessions"] });
   };
 
-  const list = sessionsQ.data ?? [];
+  // If student filter set but resolution returned 0 classes, force empty
+  const list =
+    studentFilter.length > 0 && effectiveClassIds && effectiveClassIds.length === 0
+      ? []
+      : sessionsQ.data ?? [];
   const classes = classesQ.data ?? [];
+  const students = studentsQ.data ?? [];
 
   const calSessions: CalendarSession[] = list.map((s) => {
     const c = classMap.get(s.class_id);
@@ -175,21 +255,33 @@ export default function SessionsPage() {
         }
       />
 
-      <div className="mb-4 flex items-center gap-3">
-        <span className="text-sm text-muted-foreground">Lọc theo lớp:</span>
-        <Select value={classFilter} onValueChange={setClassFilter}>
-          <SelectTrigger className="w-[260px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tất cả lớp</SelectItem>
-            {classes.map((c) => (
-              <SelectItem key={c.id} value={String(c.id)}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <MultiSelectFilter
+          label="lớp"
+          placeholder="Tất cả lớp"
+          options={classes.map((c) => ({ id: c.id, label: c.name, sub: c.subject ?? undefined }))}
+          selected={classFilter}
+          onChange={setClassFilter}
+        />
+        <MultiSelectFilter
+          label="học sinh"
+          placeholder="Tất cả học sinh"
+          options={students.map((s) => ({ id: s.id, label: s.full_name, sub: s.login_id }))}
+          selected={studentFilter}
+          onChange={setStudentFilter}
+        />
+        {(classFilter.length > 0 || studentFilter.length > 0) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setClassFilter([]);
+              setStudentFilter([]);
+            }}
+          >
+            Xoá bộ lọc
+          </Button>
+        )}
       </div>
 
       {classes.length === 0 && (
@@ -243,7 +335,8 @@ export default function SessionsPage() {
             <div className="space-y-2">
         {list.map((s) => (
           <Card key={s.id} className="border-border/80">
-            <CardContent className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <CardContent className="px-0 py-0">
+              <div className="flex flex-wrap items-center gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   {(() => {
@@ -275,9 +368,16 @@ export default function SessionsPage() {
                 {s.note && <div className="mt-1 text-xs text-muted-foreground">{s.note}</div>}
               </div>
               <div className="flex shrink-0 gap-1">
+                <Button
+                  variant={quickOpenId === s.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setQuickOpenId(quickOpenId === s.id ? null : s.id)}
+                >
+                  <Zap className="mr-1 h-4 w-4" /> Điểm danh nhanh
+                </Button>
                 <Button asChild variant="outline" size="sm">
                   <Link to={`/attendance/${s.id}`}>
-                    <ClipboardCheck className="mr-1 h-4 w-4" /> Điểm danh
+                    <ClipboardCheck className="mr-1 h-4 w-4" /> Đầy đủ
                   </Link>
                 </Button>
                 <Button
@@ -316,6 +416,17 @@ export default function SessionsPage() {
                   </AlertDialogContent>
                 </AlertDialog>
               </div>
+              </div>
+              {quickOpenId === s.id && (
+                <QuickAttendance
+                  sessionId={s.id}
+                  classId={s.class_id}
+                  sessionDate={s.starts_at.slice(0, 10)}
+                  onSaved={() => {
+                    qc.invalidateQueries({ queryKey: ["sessions"] });
+                  }}
+                />
+              )}
             </CardContent>
           </Card>
         ))}
@@ -375,16 +486,103 @@ export default function SessionsPage() {
         onOpenChange={setOpen}
         editing={editing}
         classes={classes}
-        defaultClassId={classFilter !== "all" ? Number(classFilter) : undefined}
+        defaultClassId={classFilter.length === 1 ? classFilter[0] : undefined}
         onSaved={() => qc.invalidateQueries({ queryKey: ["sessions"] })}
       />
       <GenerateSessionsDialog
         open={genOpen}
         onOpenChange={setGenOpen}
         classes={classes}
-        defaultClassId={classFilter !== "all" ? Number(classFilter) : undefined}
+        defaultClassId={classFilter.length === 1 ? classFilter[0] : undefined}
         onGenerated={() => qc.invalidateQueries({ queryKey: ["sessions"] })}
       />
     </div>
+  );
+}
+
+function MultiSelectFilter({
+  label,
+  placeholder,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  options: { id: number; label: string; sub?: string }[];
+  selected: number[];
+  onChange: (next: number[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const toggle = (id: number) =>
+    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  const display =
+    selected.length === 0
+      ? placeholder
+      : selected.length === 1
+        ? options.find((o) => o.id === selected[0])?.label ?? `1 ${label}`
+        : `${selected.length} ${label} đã chọn`;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-10 min-w-[220px] justify-between">
+          <span className={cn("truncate", selected.length === 0 && "text-muted-foreground")}>
+            {display}
+          </span>
+          <div className="flex items-center gap-1">
+            {selected.length > 0 && (
+              <span
+                role="button"
+                tabIndex={0}
+                className="rounded-full p-0.5 hover:bg-muted"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange([]);
+                }}
+              >
+                <X className="h-3.5 w-3.5" />
+              </span>
+            )}
+            <ChevronDown className="h-4 w-4 opacity-60" />
+          </div>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder={`Tìm ${label}…`} />
+          <CommandList>
+            <CommandEmpty>Không có {label}.</CommandEmpty>
+            <CommandGroup>
+              {options.map((o) => {
+                const checked = selected.includes(o.id);
+                return (
+                  <CommandItem
+                    key={o.id}
+                    value={`${o.label} ${o.sub ?? ""}`}
+                    onSelect={() => toggle(o.id)}
+                    className="flex items-center gap-2"
+                  >
+                    <div
+                      className={cn(
+                        "flex h-4 w-4 items-center justify-center rounded border",
+                        checked ? "border-primary bg-primary text-primary-foreground" : "border-border",
+                      )}
+                    >
+                      {checked && <Check className="h-3 w-3" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm">{o.label}</div>
+                      {o.sub && (
+                        <div className="truncate text-[11px] text-muted-foreground">{o.sub}</div>
+                      )}
+                    </div>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
