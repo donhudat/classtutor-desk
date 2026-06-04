@@ -486,16 +486,103 @@ export default function SessionsPage() {
         onOpenChange={setOpen}
         editing={editing}
         classes={classes}
-        defaultClassId={classFilter !== "all" ? Number(classFilter) : undefined}
+        defaultClassId={classFilter.length === 1 ? classFilter[0] : undefined}
         onSaved={() => qc.invalidateQueries({ queryKey: ["sessions"] })}
       />
       <GenerateSessionsDialog
         open={genOpen}
         onOpenChange={setGenOpen}
         classes={classes}
-        defaultClassId={classFilter !== "all" ? Number(classFilter) : undefined}
+        defaultClassId={classFilter.length === 1 ? classFilter[0] : undefined}
         onGenerated={() => qc.invalidateQueries({ queryKey: ["sessions"] })}
       />
     </div>
+  );
+}
+
+function MultiSelectFilter({
+  label,
+  placeholder,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  options: { id: number; label: string; sub?: string }[];
+  selected: number[];
+  onChange: (next: number[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const toggle = (id: number) =>
+    onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  const display =
+    selected.length === 0
+      ? placeholder
+      : selected.length === 1
+        ? options.find((o) => o.id === selected[0])?.label ?? `1 ${label}`
+        : `${selected.length} ${label} đã chọn`;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-10 min-w-[220px] justify-between">
+          <span className={cn("truncate", selected.length === 0 && "text-muted-foreground")}>
+            {display}
+          </span>
+          <div className="flex items-center gap-1">
+            {selected.length > 0 && (
+              <span
+                role="button"
+                tabIndex={0}
+                className="rounded-full p-0.5 hover:bg-muted"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange([]);
+                }}
+              >
+                <X className="h-3.5 w-3.5" />
+              </span>
+            )}
+            <ChevronDown className="h-4 w-4 opacity-60" />
+          </div>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder={`Tìm ${label}…`} />
+          <CommandList>
+            <CommandEmpty>Không có {label}.</CommandEmpty>
+            <CommandGroup>
+              {options.map((o) => {
+                const checked = selected.includes(o.id);
+                return (
+                  <CommandItem
+                    key={o.id}
+                    value={`${o.label} ${o.sub ?? ""}`}
+                    onSelect={() => toggle(o.id)}
+                    className="flex items-center gap-2"
+                  >
+                    <div
+                      className={cn(
+                        "flex h-4 w-4 items-center justify-center rounded border",
+                        checked ? "border-primary bg-primary text-primary-foreground" : "border-border",
+                      )}
+                    >
+                      {checked && <Check className="h-3 w-3" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm">{o.label}</div>
+                      {o.sub && (
+                        <div className="truncate text-[11px] text-muted-foreground">{o.sub}</div>
+                      )}
+                    </div>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
