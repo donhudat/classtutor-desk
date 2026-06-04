@@ -67,8 +67,7 @@ export default function AttendancePage() {
         .from("class_enrollments")
         .select("student_id, start_date, end_date, students(id, user_id, profiles(full_name, login_id))")
         .eq("class_id", classId)
-        .is("deleted_at", null)
-        .lte("start_date", sessionDate);
+        .is("deleted_at", null);
       if (enErr) throw enErr;
 
       const filtered = (enrolls ?? []).filter(
