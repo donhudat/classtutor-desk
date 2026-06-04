@@ -85,40 +85,37 @@ export function MonthCalendar({ month, onMonthChange, sessions, onSessionClick, 
   const goNext = () => onMonthChange(new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1));
 
   return (
-    <div className="rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden">
+    <div className="rounded-lg border border-border bg-card">
       {/* Header bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-        <div className="font-display text-xl font-semibold tracking-tight">
-          Tháng {monthStart.getMonth() + 1}{" "}
-          <span className="text-muted-foreground font-normal">{monthStart.getFullYear()}</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goPrev}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" className="h-8" onClick={goToday}>
+            Hôm nay
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={goNext}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-0.5 rounded-full border border-border/70 bg-background/60 p-0.5 shadow-sm">
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={goPrev}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" className="h-8 rounded-full px-3 text-xs font-medium" onClick={goToday}>
-              Hôm nay
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={goNext}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-          {rightAction}
+        <div className="font-display text-base sm:text-lg">
+          Tháng {monthStart.getMonth() + 1} Năm {monthStart.getFullYear()}
         </div>
+        <div className="min-w-[80px] text-right">{rightAction}</div>
       </div>
 
       {/* Weekday header */}
-      <div className="grid grid-cols-7 px-2 pb-2 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+      <div className="grid grid-cols-7 border-b border-border bg-muted/30 text-center text-xs font-semibold">
         {WEEK_HEADERS.map((w) => (
-          <div key={w} className="py-2">
+          <div key={w} className="border-r border-border px-2 py-2 last:border-r-0">
             {w}
           </div>
         ))}
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-7 gap-1.5 px-2 pb-3">
+      <div className="grid grid-cols-7 grid-rows-6">
         {days.map((d, idx) => {
           const inMonth = d.getMonth() === monthStart.getMonth();
           const isToday = isSameDay(d, today);
@@ -128,22 +125,19 @@ export function MonthCalendar({ month, onMonthChange, sessions, onSessionClick, 
             <div
               key={idx}
               className={cn(
-                "min-h-[112px] rounded-xl p-2 text-xs transition-colors",
-                inMonth
-                  ? "bg-background/40 hover:bg-secondary/40"
-                  : "bg-transparent text-muted-foreground/60",
-                isToday && "ring-1 ring-primary/40 bg-primary/5",
+                "min-h-[110px] border-b border-r border-border p-1.5 text-xs",
+                (idx + 1) % 7 === 0 && "border-r-0",
+                idx >= 35 && "border-b-0",
+                inMonth ? "bg-background" : "bg-muted/20 text-muted-foreground",
               )}
             >
-              <div className="mb-1.5 flex items-center justify-end">
+              <div className="mb-1 flex items-center justify-end">
                 {isToday ? (
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground shadow-sm shadow-primary/40">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-[11px] font-semibold text-destructive-foreground">
                     {d.getDate()}
                   </span>
                 ) : (
-                  <span className={cn("text-[12px] font-medium", !inMonth && "opacity-60")}>
-                    {d.getDate()}
-                  </span>
+                  <span className={cn("text-[11px]", !inMonth && "opacity-60")}>{d.getDate()}</span>
                 )}
               </div>
               <div className="space-y-1">
@@ -156,22 +150,21 @@ export function MonthCalendar({ month, onMonthChange, sessions, onSessionClick, 
                       onClick={() => onSessionClick?.(s)}
                       title={`${fmtTime(s.starts_at)} - ${fmtTime(s.ends_at)} ${s.className ?? ""}`}
                       className={cn(
-                        "flex w-full items-center gap-1.5 truncate rounded-lg px-2 py-1 text-left text-[11px] leading-tight transition-all hover:translate-x-0.5",
+                        "block w-full truncate rounded px-1.5 py-1 text-left text-[11px] leading-tight transition hover:opacity-90",
                         tone === "primary" &&
-                          "bg-primary/10 text-primary hover:bg-primary/15 border-l-2 border-primary",
+                          "bg-primary/15 text-primary border border-primary/25",
                         tone === "secondary" &&
-                          "bg-accent/15 text-accent hover:bg-accent/25 border-l-2 border-accent",
-                        tone === "muted" &&
-                          "bg-muted text-muted-foreground border-l-2 border-border",
+                          "bg-accent/40 text-accent-foreground border border-accent",
+                        tone === "muted" && "bg-muted text-muted-foreground border border-border",
                       )}
                     >
-                      <span className="font-semibold tabular-nums">{fmtTime(s.starts_at)}</span>
-                      <span className="truncate font-medium opacity-90">{s.className ?? `Lớp #${s.class_id}`}</span>
+                      <span className="font-semibold">{fmtTime(s.starts_at)}</span>{" "}
+                      <span className="truncate">{s.className ?? `Lớp #${s.class_id}`}</span>
                     </button>
                   );
                 })}
                 {dayItems.length > 3 && (
-                  <div className="px-1 text-[10px] font-medium text-muted-foreground">
+                  <div className="px-1 text-[10px] text-muted-foreground">
                     +{dayItems.length - 3} buổi khác
                   </div>
                 )}
