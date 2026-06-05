@@ -10,6 +10,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Check, ChevronDown, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -40,6 +51,7 @@ export function GenerateSessionsDialog({
   open,
   onOpenChange,
   classes,
+  defaultClassId,
   onGenerated,
 }: {
   open: boolean;
@@ -52,6 +64,8 @@ export function GenerateSessionsDialog({
   const { profile } = useAuth();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [selectedClassIds, setSelectedClassIds] = useState<number[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -61,7 +75,14 @@ export function GenerateSessionsDialog({
     inAMonth.setDate(today.getDate() + 30);
     setFrom(ymd(today));
     setTo(ymd(inAMonth));
+    setSelectedClassIds(defaultClassId ? [defaultClassId] : []);
   }, [open]);
+
+  // Lớp thực tế được dùng để sinh buổi: nếu user chọn cụ thể thì lọc, mặc định = tất cả.
+  const targetClasses = useMemo(
+    () => (selectedClassIds.length > 0 ? classes.filter((c) => selectedClassIds.includes(c.id)) : classes),
+    [classes, selectedClassIds],
+  );
 
   // Tính tổng số buổi sẽ sinh trên TẤT CẢ lớp.
   const preview = useMemo(() => {
@@ -70,7 +91,7 @@ export function GenerateSessionsDialog({
     const end = parseYMD(to);
     const perClass: { name: string; count: number }[] = [];
     let total = 0;
-    for (const cls of classes) {
+    for (const cls of targetClasses) {
       if (!cls.schedule?.length) continue;
       const clsStart = parseYMD(cls.start_date);
       const clsEnd = cls.end_date ? parseYMD(cls.end_date) : null;
@@ -89,7 +110,7 @@ export function GenerateSessionsDialog({
       }
     }
     return { total, perClass };
-  }, [classes, from, to]);
+  }, [targetClasses, from, to]);
 
   const submit = async () => {
     if (!profile) return;
@@ -106,13 +127,16 @@ export function GenerateSessionsDialog({
     const fromISO = combine(from, "00:00");
     const toISO = combine(to, "23:59");
 
-    // Xoá (soft-delete) các buổi CŨ trong khoảng — nhưng chỉ những buổi chưa được điểm danh
-    // và đang ở trạng thái "scheduled" để không làm mất dữ liệu lịch sử.
+    const targetClassIds = targetClasses.map((c) => c.id);
+
+    // Xoá (soft-delete) các buổi CŨ trong khoảng — chỉ trong các lớp được chọn,
+    // chỉ những buổi chưa được điểm danh và đang ở trạng thái "scheduled".
     const { error: delErr } = await supabase
       .from("class_sessions")
       .update({ deleted_at: new Date().toISOString() })
       .gte("starts_at", fromISO)
       .lte("starts_at", toISO)
+      .in("class_id", targetClassIds)
       .eq("status", "scheduled")
       .is("attendance_taken_at", null)
       .is("deleted_at", null);
@@ -128,6 +152,7 @@ export function GenerateSessionsDialog({
       .select("class_id, starts_at")
       .gte("starts_at", fromISO)
       .lte("starts_at", toISO)
+      .in("class_id", targetClassIds)
       .is("deleted_at", null);
     if (existErr) {
       setLoading(false);
@@ -149,7 +174,7 @@ export function GenerateSessionsDialog({
       status: "scheduled";
     }[] = [];
 
-    for (const cls of classes) {
+    for (const cls of targetClasses) {
       if (!cls.schedule?.length) continue;
       const clsStart = parseYMD(cls.start_date);
       const clsEnd = cls.end_date ? parseYMD(cls.end_date) : null;
@@ -194,18 +219,104 @@ export function GenerateSessionsDialog({
 
   const skipped = preview.total > 0 ? preview.perClass.length : 0;
 
+  const toggleClass = (id: number) =>
+    setSelectedClassIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+
+  const classDisplay =
+    selectedClassIds.length === 0
+      ? "Tất cả lớp"
+      : selectedClassIds.length === 1
+        ? classes.find((c) => c.id === selectedClassIds[0])?.name ?? "1 lớp"
+        : `${selectedClassIds.length} lớp đã chọn`;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display text-xl">Sinh buổi học từ lịch</DialogTitle>
           <DialogDescription>
-            Tự động tạo buổi cho <span className="font-semibold">tất cả lớp</span> dựa trên lịch
-            cố định trong tuần. Các buổi cũ <span className="font-semibold">chưa điểm danh</span>{" "}
-            trong khoảng sẽ bị thay thế; buổi đã điểm danh được giữ nguyên.
+            Tự động tạo buổi cho các lớp được chọn dựa trên lịch cố định trong tuần. Các buổi cũ{" "}
+            <span className="font-semibold">chưa điểm danh</span> trong khoảng sẽ bị thay thế;
+            buổi đã điểm danh được giữ nguyên.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <div>
+            <Label>Lớp</Label>
+            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  type="button"
+                  className="mt-1 h-10 w-full justify-between"
+                >
+                  <span
+                    className={cn(
+                      "truncate",
+                      selectedClassIds.length === 0 && "text-muted-foreground",
+                    )}
+                  >
+                    {classDisplay}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {selectedClassIds.length > 0 && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        className="rounded-full p-0.5 hover:bg-muted"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedClassIds([]);
+                        }}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </span>
+                    )}
+                    <ChevronDown className="h-4 w-4 opacity-60" />
+                  </div>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Tìm lớp…" />
+                  <CommandList>
+                    <CommandEmpty>Không có lớp.</CommandEmpty>
+                    <CommandGroup>
+                      {classes.map((c) => {
+                        const checked = selectedClassIds.includes(c.id);
+                        return (
+                          <CommandItem
+                            key={c.id}
+                            value={c.name}
+                            onSelect={() => toggleClass(c.id)}
+                            className="flex items-center gap-2"
+                          >
+                            <div
+                              className={cn(
+                                "flex h-4 w-4 items-center justify-center rounded border",
+                                checked
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border",
+                              )}
+                            >
+                              {checked && <Check className="h-3 w-3" />}
+                            </div>
+                            <span className="truncate text-sm">{c.name}</span>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Để trống = sinh cho tất cả lớp.
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Từ ngày</Label>
