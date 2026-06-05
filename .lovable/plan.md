@@ -1,38 +1,35 @@
-## Mục tiêu
-1. Trang **Buổi học** cho lọc theo **nhiều lớp** và **nhiều học sinh** cùng lúc (1 học sinh có thể học nhiều lớp).
-2. Thêm **điểm danh nhanh inline** trên từng buổi ở tab Danh sách, không cần mở trang riêng.
+## Vấn đề
+Trong dialog "Sinh buổi học từ lịch" hiện đã có ô chọn lớp (Popover + Command), nhưng người dùng không thấy / không bấm được. Nguyên nhân có thể:
+- Popover render bằng Portal và bị layering của Dialog che (cùng `z-50`), hoặc click bên trong dialog bị Radix coi là outside → đóng ngay.
+- Trigger trông giống Input nên dễ bị bỏ qua, và danh sách lớp chỉ hiện khi mở popover (1 thao tác phụ).
 
-## 1. Bộ lọc multi-select (lớp + học sinh)
+## Hướng sửa
+Thay Popover bằng **danh sách checkbox hiển thị thẳng** trong dialog — không có layer phụ, không bị che, không cần bấm mở.
 
-- Thay 2 `Select` đơn lẻ bằng 2 dropdown multi-select dạng popover với search + checkbox (dùng `Command` + `Popover` của shadcn — đã có sẵn).
-- Hiển thị dạng "Tất cả lớp" / "3 lớp đã chọn" + chip nhỏ để xoá nhanh.
-- Load danh sách học sinh: query `students` join `profiles(full_name, login_id)` của tenant hiện tại, sort theo tên.
-- Logic lọc sessions:
-  - Nếu chọn lớp → `class_id in (...)`.
-  - Nếu chọn học sinh → lấy các `class_id` từ `class_enrollments` (chưa xoá, còn hiệu lực) của các học sinh đó, intersect với filter lớp (nếu có), rồi `class_id in (...)`.
-  - Nếu cả 2 đều rỗng → giữ nguyên hành vi cũ (tất cả).
-- State filter lưu mảng `number[]` cho cả `classFilter` và `studentFilter`.
+Bố cục mới trong `GenerateSessionsDialog.tsx`:
 
-## 2. Điểm danh nhanh inline
+```text
+[Label] Lớp                          [Chọn tất cả] [Bỏ chọn]
+┌──────────────────────────────────────────────────┐
+│  ☑ Lớp Toán 8A         T2 / T5                   │
+│  ☐ Lớp Văn 9B          T3 / T6                   │
+│  ☑ Lớp Anh nâng cao    T4 / T7                   │
+│  ... (scroll dọc, max-h ~ 200px)                 │
+└──────────────────────────────────────────────────┘
+Đang chọn: 2/5 lớp. Để trống = sinh cho tất cả.
 
-Trong từng card buổi học ở tab **Danh sách**, thêm nút **"Điểm danh nhanh"** mở 1 **inline expand** (collapsible) ngay dưới card — không phải dialog, để dễ thao tác nhiều buổi liên tiếp.
+[Từ ngày] [Đến ngày]
+[Preview tổng số buổi]
+```
 
-Khi mở:
-- Fetch học sinh trong lớp (cùng logic Attendance.tsx đã sửa: enrollments chưa xoá + chưa end).
-- Fetch attendance hiện có của session.
-- Hiển thị bảng gọn: tên học sinh + 4 nút trạng thái (Có mặt / Trễ / Vắng / Vắng có phép), 1 nút "Tất cả có mặt" ở đầu.
-- Bỏ phần ghi chú từng học sinh + nhận xét phụ huynh ở chế độ nhanh (nếu cần chi tiết thì vẫn có nút "Mở trang đầy đủ" link tới `/attendance/:id`).
-- Nút **Lưu**: upsert `attendances`, set `class_sessions.attendance_taken_at` + `status='completed'`, invalidate query để refresh badge "Đã điểm danh".
+Chi tiết:
+- Danh sách dùng `ScrollArea` / div `max-h-48 overflow-auto` + `Checkbox` shadcn cho từng lớp.
+- Hai nút nhỏ: **Chọn tất cả** (set = mọi id), **Bỏ chọn** (set = []).
+- Preview phía dưới vẫn dùng `targetClasses` (lọc theo `selectedClassIds`; rỗng = tất cả).
+- Logic submit (insert + soft-delete) giữ nguyên — vẫn `.in("class_id", targetClassIds)`.
+- Bỏ import `Popover`, `Command*`, `ChevronDown`, `X` không còn cần.
 
-Component mới: `src/features/sessions/QuickAttendance.tsx` — nhận `sessionId`, `classId`, callback `onSaved`.
+## File chỉnh sửa
+- `src/features/sessions/GenerateSessionsDialog.tsx` — chỉ phần UI chọn lớp; phần date + submit không đổi.
 
-## 3. Files cần đổi
-
-- `src/pages/Sessions.tsx`: filter UI multi-select, query học sinh, logic lọc, render `QuickAttendance` khi expand.
-- `src/features/sessions/QuickAttendance.tsx` (mới): UI điểm danh nhanh.
-- Tab **Lịch tháng** giữ nguyên (vẫn dùng filter đã chọn).
-
-## Chi tiết kỹ thuật
-- Không sửa schema/backend, không sửa RLS.
-- `MultiSelect` triển khai inline trong `Sessions.tsx` bằng `Popover + Command + CommandInput + CommandItem` của shadcn.
-- React Query keys: bổ sung `studentFilter` vào key của `sessions` query để re-fetch đúng khi đổi filter.
+Không đụng backend, không đổi schema, không đụng `Sessions.tsx`.

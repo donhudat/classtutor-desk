@@ -10,17 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import { Check, ChevronDown, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -65,7 +55,6 @@ export function GenerateSessionsDialog({
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [selectedClassIds, setSelectedClassIds] = useState<number[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -224,12 +213,9 @@ export function GenerateSessionsDialog({
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
 
-  const classDisplay =
-    selectedClassIds.length === 0
-      ? "Tất cả lớp"
-      : selectedClassIds.length === 1
-        ? classes.find((c) => c.id === selectedClassIds[0])?.name ?? "1 lớp"
-        : `${selectedClassIds.length} lớp đã chọn`;
+  const selectAll = () => setSelectedClassIds(classes.map((c) => c.id));
+  const clearAll = () => setSelectedClassIds([]);
+  const effectiveCount = selectedClassIds.length === 0 ? classes.length : selectedClassIds.length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -244,76 +230,55 @@ export function GenerateSessionsDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div>
-            <Label>Lớp</Label>
-            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-              <PopoverTrigger asChild>
+            <div className="mb-1 flex items-center justify-between">
+              <Label>Lớp</Label>
+              <div className="flex gap-1">
                 <Button
-                  variant="outline"
                   type="button"
-                  className="mt-1 h-10 w-full justify-between"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={selectAll}
+                  disabled={classes.length === 0}
                 >
-                  <span
-                    className={cn(
-                      "truncate",
-                      selectedClassIds.length === 0 && "text-muted-foreground",
-                    )}
-                  >
-                    {classDisplay}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {selectedClassIds.length > 0 && (
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className="rounded-full p-0.5 hover:bg-muted"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedClassIds([]);
-                        }}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </span>
-                    )}
-                    <ChevronDown className="h-4 w-4 opacity-60" />
-                  </div>
+                  Chọn tất cả
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Tìm lớp…" />
-                  <CommandList>
-                    <CommandEmpty>Không có lớp.</CommandEmpty>
-                    <CommandGroup>
-                      {classes.map((c) => {
-                        const checked = selectedClassIds.includes(c.id);
-                        return (
-                          <CommandItem
-                            key={c.id}
-                            value={c.name}
-                            onSelect={() => toggleClass(c.id)}
-                            className="flex items-center gap-2"
-                          >
-                            <div
-                              className={cn(
-                                "flex h-4 w-4 items-center justify-center rounded border",
-                                checked
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-border",
-                              )}
-                            >
-                              {checked && <Check className="h-3 w-3" />}
-                            </div>
-                            <span className="truncate text-sm">{c.name}</span>
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={clearAll}
+                  disabled={selectedClassIds.length === 0}
+                >
+                  Bỏ chọn
+                </Button>
+              </div>
+            </div>
+            <div className="max-h-52 space-y-1 overflow-auto rounded-md border border-border bg-background p-2">
+              {classes.length === 0 ? (
+                <p className="px-2 py-3 text-sm text-muted-foreground">Chưa có lớp.</p>
+              ) : (
+                classes.map((c) => {
+                  const checked = selectedClassIds.includes(c.id);
+                  return (
+                    <label
+                      key={c.id}
+                      className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/60"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => toggleClass(c.id)}
+                      />
+                      <span className="truncate text-sm">{c.name}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Để trống = sinh cho tất cả lớp.
+              Đang chọn: <span className="font-medium text-foreground">{effectiveCount}</span>/
+              {classes.length} lớp. Để trống = sinh cho tất cả.
             </p>
           </div>
 
