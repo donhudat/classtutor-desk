@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Calculator, Wallet, CheckCircle2, Search, X } from "lucide-react";
+import { Calculator, Wallet, CheckCircle2, Search, X, ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/features/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -104,6 +104,52 @@ function monthsBetween(fromIso: string, toIso: string): string[] {
   return out;
 }
 
+function MonthPicker({ value, onChange, placeholder }: { value: string; onChange: (iso: string) => void; placeholder?: string }) {
+  const selected = value ? new Date(value) : null;
+  const [year, setYear] = useState<number>(selected ? selected.getFullYear() : new Date().getFullYear());
+  const [open, setOpen] = useState(false);
+  const months = ["T1","T2","T3","T4","T5","T6","T7","T8","T9","T10","T11","T12"];
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-10 w-[150px] justify-between font-normal">
+          <span>{selected ? formatMonthLabel(value) : (placeholder ?? "Chọn tháng")}</span>
+          <ChevronDown className="h-4 w-4 opacity-60" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[240px] p-3" align="start">
+        <div className="mb-2 flex items-center justify-between">
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setYear((y) => y - 1)}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="text-sm font-medium">{year}</div>
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setYear((y) => y + 1)}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {months.map((m, i) => {
+            const iso = `${year}-${String(i + 1).padStart(2, "0")}-01`;
+            const isSelected = value === iso;
+            return (
+              <Button
+                key={m}
+                type="button"
+                variant={isSelected ? "default" : "ghost"}
+                size="sm"
+                className="h-9 rounded-md text-xs"
+                onClick={() => { onChange(iso); setOpen(false); }}
+              >
+                {m}
+              </Button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function PaymentsPage() {
   const qc = useQueryClient();
   const months = useMemo(() => monthOptions(12), []);
@@ -116,6 +162,7 @@ export default function PaymentsPage() {
   const [parentIds, setParentIds] = useState<number[]>([]);
   const [computing, setComputing] = useState(false);
   const [editing, setEditing] = useState<PaymentRow | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const classesQ = useQuery({
     queryKey: ["classes-min"],
@@ -286,114 +333,128 @@ export default function PaymentsPage() {
       </div>
 
       <Card className="mb-4">
-        <CardContent className="flex flex-wrap items-end gap-3 py-4">
-          <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">Từ tháng</Label>
-            <Input
-              type="month"
-              value={toMonthInput(fromMonth)}
-              onChange={(e) => e.target.value && setFromMonth(fromMonthInput(e.target.value))}
-              className="w-[160px]"
-            />
-          </div>
-          <div>
-            <Label className="mb-1 block text-xs text-muted-foreground">Đến tháng</Label>
-            <Input
-              type="month"
-              value={toMonthInput(toMonth)}
-              onChange={(e) => e.target.value && setToMonth(fromMonthInput(e.target.value))}
-              className="w-[160px]"
-            />
-          </div>
-          <Select value={classId} onValueChange={setClassId}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Lớp" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả lớp</SelectItem>
-              {(classesQ.data ?? []).map((c: any) => (
-                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả trạng thái</SelectItem>
-              <SelectItem value="unpaid">Chưa thanh toán</SelectItem>
-              <SelectItem value="partial">Thanh toán một phần</SelectItem>
-              <SelectItem value="paid">Đã thanh toán</SelectItem>
-            </SelectContent>
-          </Select>
+        <CardContent className="py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <MonthPicker value={fromMonth} onChange={setFromMonth} placeholder="Từ tháng" />
+            <span className="text-xs text-muted-foreground">→</span>
+            <MonthPicker value={toMonth} onChange={setToMonth} placeholder="Đến tháng" />
 
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="justify-start">
-                Học sinh{studentIds.length ? ` (${studentIds.length})` : ""}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-72 p-2" align="start">
-              <div className="mb-2 flex items-center justify-between px-1">
-                <span className="text-xs text-muted-foreground">Chọn học sinh</span>
-                {studentIds.length > 0 && (
-                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setStudentIds([])}>
-                    <X className="mr-1 h-3 w-3" /> Bỏ chọn
+            <div className="relative ml-auto w-full sm:w-56">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Tìm theo tên / mã HS"
+                className="h-10 pl-9"
+              />
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setShowAdvanced((v) => !v)}>
+              <SlidersHorizontal className="mr-1 h-3.5 w-3.5" />
+              Bộ lọc
+              {(classId !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0) + (studentIds.length ? 1 : 0) + (parentIds.length ? 1 : 0) > 0 && (
+                <Badge variant="secondary" className="ml-1.5 h-5 px-1.5 text-[10px]">
+                  {(classId !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0) + (studentIds.length ? 1 : 0) + (parentIds.length ? 1 : 0)}
+                </Badge>
+              )}
+              <ChevronDown className={`ml-1 h-3.5 w-3.5 transition-transform ${showAdvanced ? "rotate-180" : ""}`} />
+            </Button>
+          </div>
+
+          {showAdvanced && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+              <Select value={classId} onValueChange={setClassId}>
+                <SelectTrigger className="w-[180px]"><SelectValue placeholder="Lớp" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả lớp</SelectItem>
+                  {(classesQ.data ?? []).map((c: any) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger className="w-[170px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                  <SelectItem value="unpaid">Chưa thanh toán</SelectItem>
+                  <SelectItem value="partial">Thanh toán một phần</SelectItem>
+                  <SelectItem value="paid">Đã thanh toán</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="justify-start">
+                    Học sinh{studentIds.length ? ` (${studentIds.length})` : ""}
+                    <ChevronDown className="ml-1 h-3.5 w-3.5 opacity-60" />
                   </Button>
-                )}
-              </div>
-              <div className="max-h-64 overflow-auto pr-1">
-                {(studentsQ.data ?? []).map((s: any) => {
-                  const id = s.id as number;
-                  const checked = studentIds.includes(id);
-                  return (
-                    <label key={id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted">
-                      <Checkbox checked={checked} onCheckedChange={() => toggleStudent(id)} />
-                      <span className="text-sm">{s.profiles?.full_name ?? "—"}</span>
-                      <span className="ml-auto text-[11px] text-muted-foreground">@{s.profiles?.login_id}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </PopoverContent>
-          </Popover>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-2" align="start">
+                  <div className="mb-2 flex items-center justify-between px-1">
+                    <span className="text-xs text-muted-foreground">Chọn học sinh</span>
+                    {studentIds.length > 0 && (
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setStudentIds([])}>
+                        <X className="mr-1 h-3 w-3" /> Bỏ chọn
+                      </Button>
+                    )}
+                  </div>
+                  <div className="max-h-64 overflow-auto pr-1">
+                    {(studentsQ.data ?? []).map((s: any) => {
+                      const id = s.id as number;
+                      const checked = studentIds.includes(id);
+                      return (
+                        <label key={id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted">
+                          <Checkbox checked={checked} onCheckedChange={() => toggleStudent(id)} />
+                          <span className="text-sm">{s.profiles?.full_name ?? "—"}</span>
+                          <span className="ml-auto text-[11px] text-muted-foreground">@{s.profiles?.login_id}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
 
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="justify-start">
-                Phụ huynh{parentIds.length ? ` (${parentIds.length})` : ""}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-72 p-2" align="start">
-              <div className="mb-2 flex items-center justify-between px-1">
-                <span className="text-xs text-muted-foreground">Chọn phụ huynh</span>
-                {parentIds.length > 0 && (
-                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setParentIds([])}>
-                    <X className="mr-1 h-3 w-3" /> Bỏ chọn
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="justify-start">
+                    Phụ huynh{parentIds.length ? ` (${parentIds.length})` : ""}
+                    <ChevronDown className="ml-1 h-3.5 w-3.5 opacity-60" />
                   </Button>
-                )}
-              </div>
-              <div className="max-h-64 overflow-auto pr-1">
-                {(parentsQ.data ?? []).map((p: any) => {
-                  const id = p.id as number;
-                  const checked = parentIds.includes(id);
-                  return (
-                    <label key={id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted">
-                      <Checkbox checked={checked} onCheckedChange={() => toggleParent(id)} />
-                      <span className="text-sm">{p.profiles?.full_name ?? "—"}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </PopoverContent>
-          </Popover>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-2" align="start">
+                  <div className="mb-2 flex items-center justify-between px-1">
+                    <span className="text-xs text-muted-foreground">Chọn phụ huynh</span>
+                    {parentIds.length > 0 && (
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setParentIds([])}>
+                        <X className="mr-1 h-3 w-3" /> Bỏ chọn
+                      </Button>
+                    )}
+                  </div>
+                  <div className="max-h-64 overflow-auto pr-1">
+                    {(parentsQ.data ?? []).map((p: any) => {
+                      const id = p.id as number;
+                      const checked = parentIds.includes(id);
+                      return (
+                        <label key={id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted">
+                          <Checkbox checked={checked} onCheckedChange={() => toggleParent(id)} />
+                          <span className="text-sm">{p.profiles?.full_name ?? "—"}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
 
-          <div className="relative ml-auto w-full sm:w-64">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm theo tên / mã HS"
-              className="pl-9"
-            />
-          </div>
+              {(classId !== "all" || status !== "all" || studentIds.length > 0 || parentIds.length > 0) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setClassId("all"); setStatus("all"); setStudentIds([]); setParentIds([]); }}
+                >
+                  <X className="mr-1 h-3 w-3" /> Xoá lọc
+                </Button>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
