@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Calculator, Wallet, CheckCircle2, Search, X } from "lucide-react";
+import { Calculator, Wallet, CheckCircle2, Search, X, ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/features/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
