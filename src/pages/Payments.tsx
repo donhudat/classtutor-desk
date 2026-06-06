@@ -104,6 +104,52 @@ function monthsBetween(fromIso: string, toIso: string): string[] {
   return out;
 }
 
+function MonthPicker({ value, onChange, placeholder }: { value: string; onChange: (iso: string) => void; placeholder?: string }) {
+  const selected = value ? new Date(value) : null;
+  const [year, setYear] = useState<number>(selected ? selected.getFullYear() : new Date().getFullYear());
+  const [open, setOpen] = useState(false);
+  const months = ["T1","T2","T3","T4","T5","T6","T7","T8","T9","T10","T11","T12"];
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-10 w-[150px] justify-between font-normal">
+          <span>{selected ? formatMonthLabel(value) : (placeholder ?? "Chọn tháng")}</span>
+          <ChevronDown className="h-4 w-4 opacity-60" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[240px] p-3" align="start">
+        <div className="mb-2 flex items-center justify-between">
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setYear((y) => y - 1)}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="text-sm font-medium">{year}</div>
+          <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => setYear((y) => y + 1)}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {months.map((m, i) => {
+            const iso = `${year}-${String(i + 1).padStart(2, "0")}-01`;
+            const isSelected = value === iso;
+            return (
+              <Button
+                key={m}
+                type="button"
+                variant={isSelected ? "default" : "ghost"}
+                size="sm"
+                className="h-9 rounded-md text-xs"
+                onClick={() => { onChange(iso); setOpen(false); }}
+              >
+                {m}
+              </Button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function PaymentsPage() {
   const qc = useQueryClient();
   const months = useMemo(() => monthOptions(12), []);
@@ -116,6 +162,7 @@ export default function PaymentsPage() {
   const [parentIds, setParentIds] = useState<number[]>([]);
   const [computing, setComputing] = useState(false);
   const [editing, setEditing] = useState<PaymentRow | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const classesQ = useQuery({
     queryKey: ["classes-min"],
