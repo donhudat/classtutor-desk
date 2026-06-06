@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Calculator, Wallet, CheckCircle2, Search } from "lucide-react";
+import { Calculator, Wallet, CheckCircle2, Search, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/features/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Table,
   TableBody,
@@ -81,13 +83,37 @@ function formatMonthLabel(iso: string) {
   return `Tháng ${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
+function toMonthInput(iso: string) {
+  // "YYYY-MM-01" -> "YYYY-MM"
+  return iso.slice(0, 7);
+}
+function fromMonthInput(v: string) {
+  // "YYYY-MM" -> "YYYY-MM-01"
+  return `${v}-01`;
+}
+function monthsBetween(fromIso: string, toIso: string): string[] {
+  const out: string[] = [];
+  const a = new Date(fromIso);
+  const b = new Date(toIso);
+  let y = a.getFullYear(), m = a.getMonth();
+  const ey = b.getFullYear(), em = b.getMonth();
+  while (y < ey || (y === ey && m <= em)) {
+    out.push(`${y}-${String(m + 1).padStart(2, "0")}-01`);
+    m++; if (m > 11) { m = 0; y++; }
+  }
+  return out;
+}
+
 export default function PaymentsPage() {
   const qc = useQueryClient();
   const months = useMemo(() => monthOptions(12), []);
-  const [month, setMonth] = useState<string>(months[0]);
+  const [fromMonth, setFromMonth] = useState<string>(months[0]);
+  const [toMonth, setToMonth] = useState<string>(months[0]);
   const [classId, setClassId] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const [studentIds, setStudentIds] = useState<number[]>([]);
+  const [parentIds, setParentIds] = useState<number[]>([]);
   const [computing, setComputing] = useState(false);
   const [editing, setEditing] = useState<PaymentRow | null>(null);
 
@@ -104,17 +130,69 @@ export default function PaymentsPage() {
     },
   });
 
-  const paymentsQ = useQuery({
-    queryKey: ["payments", month, classId, status],
+  const studentsQ = useQuery({
+    queryKey: ["students-min-pay"],
     queryFn: async () => {
+      const { data, error } = await supabase
+        .from("students")
+        .select("id, parent_id, profiles(full_name, login_id)")
+        .is("deleted_at", null);
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+
+  const parentsQ = useQuery({
+    queryKey: ["parents-min-pay"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("parents")
+        .select("id, profiles(full_name)")
+        .is("deleted_at", null);
+      if (error) throw error;
+      return (data ?? []) as any[];
+    },
+  });
+
+  // Effective student id filter combining direct student picks + parent picks
+  const effectiveStudentIds = useMemo<number[] | null>(() => {
+    const set = new Set<number>();
+    let any = false;
+    if (studentIds.length) {
+      any = true;
+      studentIds.forEach((id) => set.add(id));
+    }
+    if (parentIds.length) {
+      any = true;
+      const ps = new Set(parentIds);
+      (studentsQ.data ?? []).forEach((s: any) => {
+        if (s.parent_id && ps.has(s.parent_id)) set.add(s.id);
+      });
+    }
+    return any ? Array.from(set) : null;
+  }, [studentIds, parentIds, studentsQ.data]);
+
+  const paymentsQ = useQuery({
+    queryKey: ["payments", fromMonth, toMonth, classId, status, effectiveStudentIds?.join(",") ?? ""],
+    queryFn: async () => {
+      // Ensure from <= to
+      const lo = fromMonth <= toMonth ? fromMonth : toMonth;
+      const hi = fromMonth <= toMonth ? toMonth : fromMonth;
       let q = supabase
         .from("payments")
         .select(
           "id, student_id, class_enrollment_id, month, session_count, attended_count, late_count, absent_count, excused_count, price_per_session, total_amount, paid_amount, status, paid_at, note, students(profiles(full_name, login_id)), class_enrollments(classes(id, name, subject))"
         )
-        .eq("month", month)
+        .gte("month", lo)
+        .lte("month", hi)
+        .order("month", { ascending: false })
         .order("id", { ascending: false });
       if (status !== "all") q = q.eq("status", status as PaymentRow["status"]);
+      if (effectiveStudentIds && effectiveStudentIds.length > 0) {
+        q = q.in("student_id", effectiveStudentIds);
+      } else if (effectiveStudentIds && effectiveStudentIds.length === 0) {
+        return [] as PaymentRow[];
+      }
       const { data, error } = await q;
       if (error) throw error;
       let rows = (data ?? []) as unknown as PaymentRow[];
@@ -149,11 +227,19 @@ export default function PaymentsPage() {
   const handleCompute = async () => {
     setComputing(true);
     try {
-      const { data, error } = await supabase.rpc("compute_tuition_for_tenant_month", {
-        _month: month,
+      const lo = fromMonth <= toMonth ? fromMonth : toMonth;
+      const hi = fromMonth <= toMonth ? toMonth : fromMonth;
+      const list = monthsBetween(lo, hi);
+      let total = 0;
+      for (const m of list) {
+        const { data, error } = await supabase.rpc("compute_tuition_for_tenant_month", { _month: m });
+        if (error) throw error;
+        total += data ?? 0;
+      }
+      toast({
+        title: "Đã tính học phí",
+        description: `Cập nhật ${total} phiếu cho ${list.length} tháng (${formatMonthLabel(lo)} → ${formatMonthLabel(hi)})`,
       });
-      if (error) throw error;
-      toast({ title: "Đã tính học phí", description: `Cập nhật ${data ?? 0} phiếu cho ${formatMonthLabel(month)}` });
       qc.invalidateQueries({ queryKey: ["payments"] });
     } catch (err: any) {
       toast({ title: "Lỗi", description: err.message, variant: "destructive" });
@@ -162,15 +248,20 @@ export default function PaymentsPage() {
     }
   };
 
+  const toggleStudent = (id: number) =>
+    setStudentIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const toggleParent = (id: number) =>
+    setParentIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+
   return (
     <div>
       <PageHeader
         title="Học phí"
-        description="Tính học phí theo số buổi đã học và ghi nhận thanh toán."
+        description="Tính học phí theo khoảng tháng và ghi nhận thanh toán."
         actions={
           <Button onClick={handleCompute} disabled={computing}>
             <Calculator className="mr-2 h-4 w-4" />
-            {computing ? "Đang tính..." : "Tính lại học phí tháng"}
+            {computing ? "Đang tính..." : "Tính lại học phí"}
           </Button>
         }
       />
@@ -195,15 +286,25 @@ export default function PaymentsPage() {
       </div>
 
       <Card className="mb-4">
-        <CardContent className="flex flex-wrap items-center gap-3 py-4">
-          <Select value={month} onValueChange={setMonth}>
-            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {months.map((m) => (
-                <SelectItem key={m} value={m}>{formatMonthLabel(m)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <CardContent className="flex flex-wrap items-end gap-3 py-4">
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">Từ tháng</Label>
+            <Input
+              type="month"
+              value={toMonthInput(fromMonth)}
+              onChange={(e) => e.target.value && setFromMonth(fromMonthInput(e.target.value))}
+              className="w-[160px]"
+            />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">Đến tháng</Label>
+            <Input
+              type="month"
+              value={toMonthInput(toMonth)}
+              onChange={(e) => e.target.value && setToMonth(fromMonthInput(e.target.value))}
+              className="w-[160px]"
+            />
+          </div>
           <Select value={classId} onValueChange={setClassId}>
             <SelectTrigger className="w-[200px]"><SelectValue placeholder="Lớp" /></SelectTrigger>
             <SelectContent>
@@ -222,6 +323,68 @@ export default function PaymentsPage() {
               <SelectItem value="paid">Đã thanh toán</SelectItem>
             </SelectContent>
           </Select>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="justify-start">
+                Học sinh{studentIds.length ? ` (${studentIds.length})` : ""}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-2" align="start">
+              <div className="mb-2 flex items-center justify-between px-1">
+                <span className="text-xs text-muted-foreground">Chọn học sinh</span>
+                {studentIds.length > 0 && (
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setStudentIds([])}>
+                    <X className="mr-1 h-3 w-3" /> Bỏ chọn
+                  </Button>
+                )}
+              </div>
+              <div className="max-h-64 overflow-auto pr-1">
+                {(studentsQ.data ?? []).map((s: any) => {
+                  const id = s.id as number;
+                  const checked = studentIds.includes(id);
+                  return (
+                    <label key={id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted">
+                      <Checkbox checked={checked} onCheckedChange={() => toggleStudent(id)} />
+                      <span className="text-sm">{s.profiles?.full_name ?? "—"}</span>
+                      <span className="ml-auto text-[11px] text-muted-foreground">@{s.profiles?.login_id}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="justify-start">
+                Phụ huynh{parentIds.length ? ` (${parentIds.length})` : ""}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-2" align="start">
+              <div className="mb-2 flex items-center justify-between px-1">
+                <span className="text-xs text-muted-foreground">Chọn phụ huynh</span>
+                {parentIds.length > 0 && (
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setParentIds([])}>
+                    <X className="mr-1 h-3 w-3" /> Bỏ chọn
+                  </Button>
+                )}
+              </div>
+              <div className="max-h-64 overflow-auto pr-1">
+                {(parentsQ.data ?? []).map((p: any) => {
+                  const id = p.id as number;
+                  const checked = parentIds.includes(id);
+                  return (
+                    <label key={id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted">
+                      <Checkbox checked={checked} onCheckedChange={() => toggleParent(id)} />
+                      <span className="text-sm">{p.profiles?.full_name ?? "—"}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
+
           <div className="relative ml-auto w-full sm:w-64">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -239,6 +402,7 @@ export default function PaymentsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Tháng</TableHead>
                 <TableHead>Học sinh</TableHead>
                 <TableHead>Lớp</TableHead>
                 <TableHead className="text-center">Buổi đã học</TableHead>
@@ -251,16 +415,17 @@ export default function PaymentsPage() {
             </TableHeader>
             <TableBody>
               {paymentsQ.isLoading ? (
-                <TableRow><TableCell colSpan={8} className="py-10 text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="py-10 text-center text-muted-foreground">Đang tải...</TableCell></TableRow>
               ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
-                  Chưa có phiếu nào. Bấm "Tính lại học phí tháng" để tạo.
+                <TableRow><TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
+                  Chưa có phiếu nào. Bấm "Tính lại học phí" để tạo.
                 </TableCell></TableRow>
               ) : (
                 filtered.map((r) => {
                   const remaining = Math.max(0, r.total_amount - r.paid_amount);
                   return (
                     <TableRow key={r.id}>
+                      <TableCell className="whitespace-nowrap text-sm">{formatMonthLabel(r.month)}</TableCell>
                       <TableCell>
                         <div className="font-medium">{r.students?.profiles?.full_name ?? "—"}</div>
                         <div className="text-xs text-muted-foreground">@{r.students?.profiles?.login_id}</div>
