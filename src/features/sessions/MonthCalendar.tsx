@@ -142,7 +142,7 @@ export function MonthCalendar({ month, onMonthChange, sessions, onSessionClick, 
               </div>
               <div className="space-y-1">
                 {dayItems.slice(0, 3).map((s) => {
-                  const tone = colorFor?.(s) ?? (s.status === "completed" ? "secondary" : "primary");
+                  const tone = colorFor?.(s) ?? (s.status === "completed" ? "success" : s.status === "cancelled" ? "destructive" : "primary");
                   return (
                     <button
                       key={s.id}
@@ -156,6 +156,10 @@ export function MonthCalendar({ month, onMonthChange, sessions, onSessionClick, 
                         tone === "secondary" &&
                           "bg-accent/40 text-accent-foreground border border-accent",
                         tone === "muted" && "bg-muted text-muted-foreground border border-border",
+                        tone === "success" &&
+                          "bg-emerald-500/15 text-emerald-700 border border-emerald-500/30",
+                        tone === "destructive" &&
+                          "bg-red-500/15 text-red-700 border border-red-500/30",
                       )}
                     >
                       <span className="font-semibold">{fmtTime(s.starts_at)}</span>{" "}
