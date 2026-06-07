@@ -316,7 +316,7 @@ export default function SessionsPage() {
                 if (full) setDetail(full);
               }}
               colorFor={(s) =>
-                s.status === "completed" ? "secondary" : s.status === "cancelled" ? "muted" : "primary"
+                s.status === "completed" ? "success" : s.status === "cancelled" ? "destructive" : "primary"
               }
             />
           </TabsContent>
@@ -333,8 +333,15 @@ export default function SessionsPage() {
               </Card>
             )}
             <div className="space-y-2">
-        {list.map((s) => (
-          <Card key={s.id} className="border-border/80">
+        {list.map((s) => {
+          const statusBorder =
+            s.status === "completed"
+              ? "border-l-4 border-l-emerald-500"
+              : s.status === "cancelled"
+                ? "border-l-4 border-l-red-500"
+                : "";
+          return (
+          <Card key={s.id} className={cn("border-border/80", statusBorder)}>
             <CardContent className="px-0 py-0">
               <div className="flex flex-wrap items-center gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
@@ -355,7 +362,17 @@ export default function SessionsPage() {
                       </>
                     );
                   })()}
-                  <Badge variant={STATUS_VARIANT[s.status]}>{STATUS_LABEL[s.status]}</Badge>
+                  {s.status === "completed" && (
+                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                      {STATUS_LABEL[s.status]}
+                    </Badge>
+                  )}
+                  {s.status === "cancelled" && (
+                    <Badge variant="destructive">{STATUS_LABEL[s.status]}</Badge>
+                  )}
+                  {s.status === "scheduled" && (
+                    <Badge variant={STATUS_VARIANT[s.status]}>{STATUS_LABEL[s.status]}</Badge>
+                  )}
                   {s.attendance_taken_at && (
                     <Badge variant="outline" className="border-primary/40 text-primary">
                       Đã điểm danh
