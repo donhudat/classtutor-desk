@@ -446,7 +446,7 @@ export default function SessionsPage() {
               )}
             </CardContent>
           </Card>
-        ))}
+        )}
             </div>
           </TabsContent>
         </Tabs>
