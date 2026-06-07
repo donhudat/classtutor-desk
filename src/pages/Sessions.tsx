@@ -454,7 +454,7 @@ export default function SessionsPage() {
 
       {/* Detail dialog (from calendar click) */}
       <Dialog open={!!detail} onOpenChange={(v) => !v && setDetail(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           {detail && (() => {
             const cls = classMap.get(detail.class_id);
             return (
@@ -476,10 +476,18 @@ export default function SessionsPage() {
                 {detail.note && (
                   <p className="text-sm text-muted-foreground">{detail.note}</p>
                 )}
+                <div className="-mx-6 max-h-[50vh] overflow-auto border-t border-border/60">
+                  <QuickAttendance
+                    sessionId={detail.id}
+                    classId={detail.class_id}
+                    sessionDate={detail.starts_at.slice(0, 10)}
+                    onSaved={() => qc.invalidateQueries({ queryKey: ["sessions"] })}
+                  />
+                </div>
                 <DialogFooter className="gap-2 sm:gap-2">
                   <Button asChild variant="outline">
                     <Link to={`/attendance/${detail.id}`}>
-                      <ClipboardCheck className="mr-1 h-4 w-4" /> Điểm danh
+                      <ClipboardCheck className="mr-1 h-4 w-4" /> Điểm danh chi tiết
                     </Link>
                   </Button>
                   <Button

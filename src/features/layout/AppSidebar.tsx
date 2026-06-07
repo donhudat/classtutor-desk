@@ -35,7 +35,6 @@ const teacherItems: Item[] = [
   { title: "Tổng quan", url: "/", icon: LayoutDashboard },
   { title: "Lớp học", url: "/classes", icon: GraduationCap },
   { title: "Buổi học", url: "/sessions", icon: CalendarDays },
-  { title: "Điểm danh", url: "/attendance", icon: ClipboardCheck },
   { title: "Bài tập", url: "/assignments", icon: BookOpen },
   { title: "Bài nộp", url: "/submissions", icon: FileCheck2 },
   { title: "Học sinh", url: "/students", icon: Users },
