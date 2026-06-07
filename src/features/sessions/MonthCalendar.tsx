@@ -20,7 +20,7 @@ type Props = {
   onSessionClick?: (s: CalendarSession) => void;
   rightAction?: React.ReactNode;
   /** Visual variant per session, defaults to status-based */
-  colorFor?: (s: CalendarSession) => "primary" | "secondary" | "muted";
+  colorFor?: (s: CalendarSession) => "primary" | "secondary" | "muted" | "success" | "destructive";
 };
 
 const WEEK_HEADERS = ["Th 2", "Th 3", "Th 4", "Th 5", "Th 6", "Th 7", "CN"];
