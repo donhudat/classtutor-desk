@@ -85,16 +85,16 @@ function formatMonthLabel(iso: string) {
 }
 
 const ATT_LABEL: Record<string, string> = {
-  present: "Có mặt",
+  attended: "Có mặt",
   late: "Đi muộn",
   absent: "Vắng",
-  excused: "Có phép",
+  absent_excused: "Có phép",
 };
 const ATT_TONE: Record<string, string> = {
-  present: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
+  attended: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
   late: "bg-amber-500/15 text-amber-700 border-amber-500/30",
   absent: "bg-red-500/15 text-red-700 border-red-500/30",
-  excused: "bg-sky-500/15 text-sky-700 border-sky-500/30",
+  absent_excused: "bg-sky-500/15 text-sky-700 border-sky-500/30",
 };
 const SESSION_TONE: Record<string, string> = {
   completed: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
