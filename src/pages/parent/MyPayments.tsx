@@ -93,7 +93,7 @@ export default function MyPaymentsPage() {
       let q = supabase
         .from("payments")
         .select(
-          "id, student_id, month, session_count, attended_count, late_count, price_per_session, total_amount, paid_amount, status, paid_at, note, class_enrollments(classes(name, subject))"
+          "id, student_id, month, session_count, attended_count, late_count, absent_count, excused_count, price_per_session, total_amount, paid_amount, status, paid_at, note, class_enrollments(classes(id, name, subject))"
         )
         .order("month", { ascending: false });
       if (childId !== "all") q = q.eq("student_id", Number(childId));
@@ -175,7 +175,18 @@ export default function MyPaymentsPage() {
                         <div className="text-xs text-muted-foreground">{r.class_enrollments.classes.subject}</div>
                       )}
                     </TableCell>
-                    <TableCell className="text-center">{r.attended_count + r.late_count} / {r.session_count}</TableCell>
+                    <TableCell className="text-center">
+                      {r.class_enrollments?.classes?.id ? (
+                        <AttendanceBreakdown studentId={r.student_id} classId={r.class_enrollments.classes.id} month={r.month}>
+                          <span className="underline-offset-2 hover:underline">
+                            <span className="font-medium">{r.attended_count + r.late_count}</span>
+                            <span className="text-muted-foreground"> / {r.session_count}</span>
+                          </span>
+                        </AttendanceBreakdown>
+                      ) : (
+                        <>{r.attended_count + r.late_count} / {r.session_count}</>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">{formatVND(r.price_per_session)}</TableCell>
                     <TableCell className="text-right font-medium">{formatVND(r.total_amount)}</TableCell>
                     <TableCell className="text-right">{formatVND(r.paid_amount)}</TableCell>
