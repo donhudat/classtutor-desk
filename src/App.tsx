@@ -26,6 +26,7 @@ import MyPaymentsPage from "@/pages/parent/MyPayments";
 import SettingsPage from "@/pages/Settings";
 import SeoKeywordsPage from "@/pages/SeoKeywords";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
+import AdminAuditLog from "@/pages/admin/AdminAuditLog";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
@@ -53,6 +54,14 @@ const App = () => (
                 element={
                   <ProtectedRoute allow={["super_admin"]}>
                     <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/audit"
+                element={
+                  <ProtectedRoute allow={["super_admin"]}>
+                    <AdminAuditLog />
                   </ProtectedRoute>
                 }
               />

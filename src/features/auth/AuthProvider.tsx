@@ -47,12 +47,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, sess) => {
       setSession(sess);
       setUser(sess?.user ?? null);
       if (sess?.user) {
         // defer to avoid deadlock with Supabase client
         setTimeout(() => loadProfile(sess.user.id), 0);
+        if (event === "SIGNED_IN") {
+          setTimeout(() => {
+            supabase.rpc("log_activity", {
+              _action: "login",
+              _entity: "session",
+              _entity_id: null,
+              _meta: {
+                path: typeof window !== "undefined" ? window.location.pathname : null,
+                ua: typeof navigator !== "undefined" ? navigator.userAgent : null,
+              },
+            });
+          }, 0);
+        }
       } else {
         setProfile(null);
         setRoles([]);
@@ -77,6 +90,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    try {
+      await supabase.rpc("log_activity", {
+        _action: "logout",
+        _entity: "session",
+        _entity_id: null,
+        _meta: null,
+      });
+    } catch {}
     await supabase.auth.signOut();
     setProfile(null);
     setRoles([]);

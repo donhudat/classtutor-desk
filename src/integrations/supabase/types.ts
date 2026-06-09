@@ -939,6 +939,15 @@ export type Database = {
       is_student_self: { Args: { _student_id: number }; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
       is_teacher: { Args: never; Returns: boolean }
+      log_activity: {
+        Args: {
+          _action: string
+          _entity?: string
+          _entity_id?: string
+          _meta?: Json
+        }
+        Returns: number
+      }
     }
     Enums: {
       app_role: "teacher" | "student" | "parent" | "super_admin"
