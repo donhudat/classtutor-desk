@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-type AppRole = "teacher" | "student" | "parent";
+type AppRole = "teacher" | "student" | "parent" | "super_admin";
 
 export type Profile = {
   id: string;
@@ -104,5 +104,6 @@ export function useRole() {
     isTeacher: roles.includes("teacher"),
     isStudent: roles.includes("student"),
     isParent: roles.includes("parent"),
+    isSuperAdmin: roles.includes("super_admin"),
   };
 }
