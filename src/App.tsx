@@ -25,6 +25,7 @@ import PaymentsPage from "@/pages/Payments";
 import MyPaymentsPage from "@/pages/parent/MyPayments";
 import SettingsPage from "@/pages/Settings";
 import SeoKeywordsPage from "@/pages/SeoKeywords";
+import AdminDashboard from "@/pages/admin/AdminDashboard";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
@@ -47,6 +48,14 @@ const App = () => (
               }
             >
               <Route path="/" element={<Dashboard />} />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute allow={["super_admin"]}>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/students"
                 element={

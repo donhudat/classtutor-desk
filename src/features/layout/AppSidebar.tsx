@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   Search,
+  ShieldCheck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -55,13 +56,19 @@ const parentItems: Item[] = [
   { title: "Học phí", url: "/my-payments", icon: Wallet },
 ];
 
+const adminItems: Item[] = [
+  { title: "Quản trị nền tảng", url: "/admin", icon: ShieldCheck },
+];
+
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { profile, signOut } = useAuth();
-  const { isTeacher, isStudent, isParent } = useRole();
+  const { isTeacher, isStudent, isParent, isSuperAdmin } = useRole();
 
-  const items = isTeacher
+  const items = isSuperAdmin
+    ? adminItems
+    : isTeacher
     ? teacherItems
     : isStudent
     ? studentItems
@@ -82,7 +89,13 @@ export function AppSidebar() {
                 Lớp Học
               </span>
               <span className="text-[10px] uppercase tracking-wider text-sidebar-foreground/60">
-                {isTeacher ? "Giáo viên" : isStudent ? "Học sinh" : "Phụ huynh"}
+                {isSuperAdmin
+                  ? "Quản trị viên"
+                  : isTeacher
+                  ? "Giáo viên"
+                  : isStudent
+                  ? "Học sinh"
+                  : "Phụ huynh"}
               </span>
             </div>
           )}

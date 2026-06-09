@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth, useRole } from "./AuthProvider";
 
-type Role = "teacher" | "student" | "parent";
+type Role = "teacher" | "student" | "parent" | "super_admin";
 
 export function ProtectedRoute({
   children,

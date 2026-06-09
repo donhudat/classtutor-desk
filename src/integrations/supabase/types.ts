@@ -826,6 +826,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           id: number
+          is_platform: boolean
           name: string
           owner_user_id: string | null
           timezone: string
@@ -835,6 +836,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: number
+          is_platform?: boolean
           name: string
           owner_user_id?: string | null
           timezone?: string
@@ -844,6 +846,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           id?: number
+          is_platform?: boolean
           name?: string
           owner_user_id?: string | null
           timezone?: string
@@ -934,10 +937,11 @@ export type Database = {
       }
       is_student_in_class: { Args: { _class_id: number }; Returns: boolean }
       is_student_self: { Args: { _student_id: number }; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
       is_teacher: { Args: never; Returns: boolean }
     }
     Enums: {
-      app_role: "teacher" | "student" | "parent"
+      app_role: "teacher" | "student" | "parent" | "super_admin"
       attendance_status: "attended" | "late" | "absent" | "absent_excused"
       payment_status: "unpaid" | "partial" | "paid"
       session_status: "scheduled" | "completed" | "cancelled"
@@ -1069,7 +1073,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["teacher", "student", "parent"],
+      app_role: ["teacher", "student", "parent", "super_admin"],
       attendance_status: ["attended", "late", "absent", "absent_excused"],
       payment_status: ["unpaid", "partial", "paid"],
       session_status: ["scheduled", "completed", "cancelled"],

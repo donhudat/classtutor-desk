@@ -90,7 +90,7 @@ export default function AuthPage() {
 
 function LoginCard() {
   const nav = useNavigate();
-  const [tab, setTab] = useState<"teacher" | "student" | "parent">("teacher");
+  const [tab, setTab] = useState<"teacher" | "student" | "parent" | "admin">("teacher");
   const [loading, setLoading] = useState(false);
 
   // teacher
@@ -100,6 +100,30 @@ function LoginCard() {
   // student/parent
   const [loginId, setLoginId] = useState("");
   const [uPassword, setUPassword] = useState("");
+
+  // admin
+  const [aLogin, setALogin] = useState("");
+  const [aPassword, setAPassword] = useState("");
+
+  const handleAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aLogin.trim() || !aPassword) {
+      toast({ title: "Lỗi", description: "Nhập đầy đủ thông tin", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    const email = aLogin.trim().toLowerCase() === "admin" ? "admin@app.local" : aLogin.trim();
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password: aPassword,
+    });
+    setLoading(false);
+    if (error) {
+      toast({ title: "Đăng nhập thất bại", description: "Sai tài khoản hoặc mật khẩu", variant: "destructive" });
+      return;
+    }
+    nav("/");
+  };
 
   const handleTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,10 +197,11 @@ function LoginCard() {
       </CardHeader>
       <CardContent>
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="teacher">Giáo viên</TabsTrigger>
             <TabsTrigger value="student">Học sinh</TabsTrigger>
             <TabsTrigger value="parent">Phụ huynh</TabsTrigger>
+            <TabsTrigger value="admin">Admin</TabsTrigger>
           </TabsList>
 
           <TabsContent value="teacher">
@@ -239,6 +264,39 @@ function LoginCard() {
               </form>
             </TabsContent>
           ))}
+
+          <TabsContent value="admin">
+            <form className="mt-4 space-y-4" onSubmit={handleAdmin}>
+              <div>
+                <Label htmlFor="a-login">Tài khoản admin</Label>
+                <Input
+                  id="a-login"
+                  value={aLogin}
+                  onChange={(e) => setALogin(e.target.value)}
+                  placeholder="admin"
+                  autoComplete="username"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="a-pass">Mật khẩu</Label>
+                <Input
+                  id="a-pass"
+                  type="password"
+                  value={aPassword}
+                  onChange={(e) => setAPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Đang đăng nhập…" : "Đăng nhập quản trị"}
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                Chỉ dành cho quản trị viên nền tảng
+              </p>
+            </form>
+          </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
