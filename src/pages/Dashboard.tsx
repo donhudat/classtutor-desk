@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import {
   Users,
   GraduationCap,
@@ -62,7 +62,9 @@ function StatCard({
 
 export default function Dashboard() {
   const { profile } = useAuth();
-  const { isTeacher, isStudent, isParent } = useRole();
+  const { isTeacher, isStudent, isParent, isSuperAdmin } = useRole();
+
+  if (isSuperAdmin) return <Navigate to="/admin" replace />;
 
   const stats = useQuery({
     enabled: isTeacher,
