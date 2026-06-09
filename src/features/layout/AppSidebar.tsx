@@ -12,6 +12,7 @@ import {
   LogOut,
   Search,
   ShieldCheck,
+  ScrollText,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -58,6 +59,7 @@ const parentItems: Item[] = [
 
 const adminItems: Item[] = [
   { title: "Quản trị nền tảng", url: "/admin", icon: ShieldCheck },
+  { title: "Nhật ký truy cập", url: "/admin/audit", icon: ScrollText },
 ];
 
 export function AppSidebar() {
