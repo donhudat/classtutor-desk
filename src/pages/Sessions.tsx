@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Wand2, ClipboardCheck, CalendarDays, List, Check, ChevronDown, X, Zap } from "lucide-react";
+import { Plus, Pencil, Trash2, Wand2, ClipboardCheck, CalendarDays, List, Check, ChevronDown, X, Zap, CalendarIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/features/layout/PageHeader";
@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MonthCalendar, type CalendarSession } from "@/features/sessions/MonthCalendar";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -89,6 +91,8 @@ export default function SessionsPage() {
   });
   const [detail, setDetail] = useState<SessionRow | null>(null);
   const [quickOpenId, setQuickOpenId] = useState<number | null>(null);
+  const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
+  const [toDate, setToDate] = useState<Date | undefined>(undefined);
 
   const classesQ = useQuery({
     queryKey: ["classes-min"],
@@ -172,11 +176,17 @@ export default function SessionsPage() {
       "sessions",
       effectiveClassIds ? effectiveClassIds.slice().sort().join(",") : "all",
       month.toISOString(),
+      fromDate ? fromDate.toISOString() : "",
+      toDate ? toDate.toISOString() : "",
     ],
     enabled: effectiveClassIds === null || effectiveClassIds.length > 0 || studentFilter.length === 0,
     queryFn: async () => {
-      const start = new Date(month.getFullYear(), month.getMonth() - 1, 1).toISOString();
-      const end = new Date(month.getFullYear(), month.getMonth() + 2, 1).toISOString();
+      const start = fromDate
+        ? new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate()).toISOString()
+        : new Date(month.getFullYear(), month.getMonth() - 1, 1).toISOString();
+      const end = toDate
+        ? new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate() + 1).toISOString()
+        : new Date(month.getFullYear(), month.getMonth() + 2, 1).toISOString();
       let q = supabase
         .from("class_sessions")
         .select("id, class_id, starts_at, ends_at, status, note, attendance_taken_at")
@@ -270,13 +280,23 @@ export default function SessionsPage() {
           selected={studentFilter}
           onChange={setStudentFilter}
         />
-        {(classFilter.length > 0 || studentFilter.length > 0) && (
+        <DateRangePicker
+          from={fromDate}
+          to={toDate}
+          onChange={(f, t) => {
+            setFromDate(f);
+            setToDate(t);
+          }}
+        />
+        {(classFilter.length > 0 || studentFilter.length > 0 || fromDate || toDate) && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
               setClassFilter([]);
               setStudentFilter([]);
+              setFromDate(undefined);
+              setToDate(undefined);
             }}
           >
             Xoá bộ lọc
@@ -607,6 +627,65 @@ function MultiSelectFilter({
             </CommandGroup>
           </CommandList>
         </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function DateRangePicker({
+  from,
+  to,
+  onChange,
+}: {
+  from?: Date;
+  to?: Date;
+  onChange: (from?: Date, to?: Date) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const label =
+    from && to
+      ? `${format(from, "dd/MM/yyyy")} → ${format(to, "dd/MM/yyyy")}`
+      : from
+        ? `Từ ${format(from, "dd/MM/yyyy")}`
+        : to
+          ? `Đến ${format(to, "dd/MM/yyyy")}`
+          : "Khoảng ngày";
+  const hasValue = !!(from || to);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-10 min-w-[240px] justify-between">
+          <span className={cn("flex items-center gap-2 truncate", !hasValue && "text-muted-foreground")}>
+            <CalendarIcon className="h-4 w-4" />
+            {label}
+          </span>
+          <div className="flex items-center gap-1">
+            {hasValue && (
+              <span
+                role="button"
+                tabIndex={0}
+                className="rounded-full p-0.5 hover:bg-muted"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange(undefined, undefined);
+                }}
+              >
+                <X className="h-3.5 w-3.5" />
+              </span>
+            )}
+            <ChevronDown className="h-4 w-4 opacity-60" />
+          </div>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="range"
+          selected={{ from, to }}
+          onSelect={(range: any) => onChange(range?.from, range?.to)}
+          numberOfMonths={2}
+          initialFocus
+          className={cn("p-3 pointer-events-auto")}
+        />
       </PopoverContent>
     </Popover>
   );
