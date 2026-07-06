@@ -111,9 +111,8 @@ export default function ClassesPage() {
         .in("id", ids);
       await supabase
         .from("payments")
-        .update({ deleted_at: now })
-        .in("class_enrollment_id", ids)
-        .is("deleted_at", null);
+        .delete()
+        .in("class_enrollment_id", ids);
     }
     toast({ title: "Đã xoá lớp" });
     qc.invalidateQueries({ queryKey: ["classes"] });
