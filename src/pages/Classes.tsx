@@ -82,16 +82,43 @@ export default function ClassesPage() {
   const aggMap = aggQ.data ?? new Map<number, EnrollAgg>();
 
   const softDelete = async (id: number) => {
+    const now = new Date().toISOString();
     const { error } = await supabase
       .from("classes")
-      .update({ deleted_at: new Date().toISOString() })
+      .update({ deleted_at: now })
       .eq("id", id);
     if (error) {
       toast({ title: "Lỗi", description: error.message, variant: "destructive" });
       return;
     }
+    // Cascade soft-delete related records so they no longer show in
+    // Buổi học / Học phí after the class is removed.
+    await supabase
+      .from("class_sessions")
+      .update({ deleted_at: now })
+      .eq("class_id", id)
+      .is("deleted_at", null);
+    const { data: enrollmentIds } = await supabase
+      .from("class_enrollments")
+      .select("id")
+      .eq("class_id", id)
+      .is("deleted_at", null);
+    const ids = (enrollmentIds ?? []).map((e: any) => e.id as number);
+    if (ids.length) {
+      await supabase
+        .from("class_enrollments")
+        .update({ deleted_at: now })
+        .in("id", ids);
+      await supabase
+        .from("payments")
+        .update({ deleted_at: now })
+        .in("class_enrollment_id", ids)
+        .is("deleted_at", null);
+    }
     toast({ title: "Đã xoá lớp" });
     qc.invalidateQueries({ queryKey: ["classes"] });
+    qc.invalidateQueries({ queryKey: ["sessions"] });
+    qc.invalidateQueries({ queryKey: ["payments"] });
   };
 
   const list = classesQ.data ?? [];
