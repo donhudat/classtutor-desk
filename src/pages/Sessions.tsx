@@ -631,3 +631,62 @@ function MultiSelectFilter({
     </Popover>
   );
 }
+
+function DateRangePicker({
+  from,
+  to,
+  onChange,
+}: {
+  from?: Date;
+  to?: Date;
+  onChange: (from?: Date, to?: Date) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const label =
+    from && to
+      ? `${format(from, "dd/MM/yyyy")} → ${format(to, "dd/MM/yyyy")}`
+      : from
+        ? `Từ ${format(from, "dd/MM/yyyy")}`
+        : to
+          ? `Đến ${format(to, "dd/MM/yyyy")}`
+          : "Khoảng ngày";
+  const hasValue = !!(from || to);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="h-10 min-w-[240px] justify-between">
+          <span className={cn("flex items-center gap-2 truncate", !hasValue && "text-muted-foreground")}>
+            <CalendarIcon className="h-4 w-4" />
+            {label}
+          </span>
+          <div className="flex items-center gap-1">
+            {hasValue && (
+              <span
+                role="button"
+                tabIndex={0}
+                className="rounded-full p-0.5 hover:bg-muted"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onChange(undefined, undefined);
+                }}
+              >
+                <X className="h-3.5 w-3.5" />
+              </span>
+            )}
+            <ChevronDown className="h-4 w-4 opacity-60" />
+          </div>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="range"
+          selected={{ from, to }}
+          onSelect={(range: any) => onChange(range?.from, range?.to)}
+          numberOfMonths={2}
+          initialFocus
+          className={cn("p-3 pointer-events-auto")}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
